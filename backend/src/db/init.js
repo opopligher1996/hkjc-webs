@@ -142,6 +142,15 @@ async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_race_records_going ON race_records(going);
       CREATE INDEX IF NOT EXISTS idx_race_records_class ON race_records(race_class);
       CREATE INDEX IF NOT EXISTS idx_race_records_draw ON race_records(draw);
+
+      CREATE TABLE IF NOT EXISTS sensor_readings (
+        id SERIAL PRIMARY KEY,
+        temperature NUMERIC(5,2) NOT NULL,
+        humidity NUMERIC(5,2) NOT NULL,
+        recorded_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sensor_readings_recorded_at ON sensor_readings(recorded_at DESC);
     `);
     console.log('Database initialized successfully');
 
