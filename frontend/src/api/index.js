@@ -32,8 +32,8 @@ export const getRacecard = (date) =>
 export const getFixtures = () =>
   api.get('/races').then(r => r.data);
 
-export const triggerScrape = (type) =>
-  api.post(`/scrape/${type}`, null, { timeout: 5000 }).then(r => r.data);
+export const triggerScrape = (type, body = null) =>
+  api.post(`/scrape/${type}`, body, { timeout: 5000 }).then(r => r.data);
 
 export const getHorses = (q) =>
   api.get('/horses', { params: q ? { q } : {} }).then(r => r.data);

@@ -209,6 +209,35 @@ async function initDb() {
            ALTER TABLE course_times ADD CONSTRAINT course_times_unique UNIQUE (section, racecourse, distance, race_class);
          END IF;
        END $$`,
+      // race_sectional_times: stores per-horse sectional times scraped from displaysectionaltime page
+      `CREATE TABLE IF NOT EXISTS race_sectional_times (
+         id SERIAL PRIMARY KEY,
+         race_date DATE NOT NULL,
+         racecourse VARCHAR(10),
+         race_no INTEGER NOT NULL,
+         race_class VARCHAR(50),
+         distance INTEGER,
+         track_type VARCHAR(20),
+         going VARCHAR(50),
+         finish_position INTEGER,
+         horse_no INTEGER NOT NULL,
+         horse_id VARCHAR(20),
+         horse_name VARCHAR(100),
+         finish_time VARCHAR(20),
+         seg1 VARCHAR(20),
+         seg2 VARCHAR(20),
+         seg3 VARCHAR(20),
+         seg4 VARCHAR(20),
+         seg5 VARCHAR(20),
+         seg6 VARCHAR(20),
+         cumulative_times JSONB,
+         running_positions VARCHAR(200),
+         scraped_at TIMESTAMP DEFAULT NOW(),
+         UNIQUE (race_date, race_no, horse_no)
+       )`,
+      `CREATE INDEX IF NOT EXISTS idx_rst_race_date ON race_sectional_times(race_date)`,
+      `CREATE INDEX IF NOT EXISTS idx_rst_horse_id ON race_sectional_times(horse_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_rst_horse_no_date ON race_sectional_times(horse_no, race_date DESC)`,
     ];
     for (const sql of migrations) {
       await client.query(sql);

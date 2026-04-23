@@ -1,4 +1,6 @@
 const puppeteer = require('puppeteer');
+const axios = require('axios');
+const cheerio = require('cheerio');
 const pool = require('../db/pool');
 
 let browser = null;
@@ -527,6 +529,130 @@ async function scrapeFixtures() {
   return unique;
 }
 
+// ── Past Results Racecard Scraper ─────────────────────────────────────────
+// Scrapes past race results from HKJC localresults page.
+// URL: https://racing.hkjc.com/zh-hk/local/information/localresults?racedate=YYYY/MM/DD&Racecourse=HV&RaceNo=N
+//
+// Returns same structure as scrapeRacecard: { raceDate, racecourse, races: [...] }
+
+async function scrapeRacecardFromResults(raceDate, racecourse) {
+  const raceDateUrl = raceDate.replace(/-/g, '/');
+  const allRaces = [];
+
+  for (let raceNo = 1; raceNo <= 12; raceNo++) {
+    const url = `https://racing.hkjc.com/zh-hk/local/information/localresults?racedate=${raceDateUrl}&Racecourse=${racecourse}&RaceNo=${raceNo}`;
+    try {
+      const response = await axios.get(url, { timeout: 15000 });
+      const $ = cheerio.load(response.data);
+
+      // Check if page has data
+      const perfTable = $('div.performance table tbody');
+      if (!perfTable.length || perfTable.find('tr').length === 0) {
+        console.log(`[RacecardResults] Race ${raceNo}: no data, stopping`);
+        break;
+      }
+
+      // ── Race header ──────────────────────────────────────────────────────
+      let raceClass = '', distance = 0, trackType = '';
+      const raceTabRows = $('div.race_tab table tbody tr');
+      raceTabRows.each((_, tr) => {
+        const cells = $(tr).find('td');
+        const cell0 = cells.eq(0).text().trim();
+        // e.g. "第五班 - 1200米 - (40-0)"
+        const classM = cell0.match(/第[一二三四五六七八九十]\s*班|國際[一二三四五]\s*級|Group\s*\d/);
+        if (classM) raceClass = classM[0].replace(/\s/g, '');
+        const distM = cell0.match(/(\d{3,4})\s*米/);
+        if (distM) distance = parseInt(distM[1]);
+        // e.g. "草地 - "B" 賽道" or "全天候跑道"
+        const trackCell = cells.eq(2).text().trim();
+        if (trackCell.includes('草地')) trackType = 'TURF';
+        else if (trackCell.includes('全天候') || trackCell.includes('泥地')) trackType = 'AWT';
+      });
+
+      // ── Horse rows ───────────────────────────────────────────────────────
+      const horses = [];
+      perfTable.find('tr').each((_, tr) => {
+        const tds = $(tr).find('td');
+        if (tds.length < 8) return;
+
+        const horseNoText = tds.eq(1).text().trim();
+        const horseNo = parseInt(horseNoText) || 0;
+        if (!horseNo) return; // skip header/summary rows
+
+        // Horse name & ID from link href e.g. "?horseid=HK_2023_J304"
+        const horseLink = tds.eq(2).find('a');
+        const horseName = horseLink.text().trim() || tds.eq(2).text().trim();
+        const horseHref = horseLink.attr('href') || '';
+        const horseIdM = horseHref.match(/horseid=([^&]+)/i);
+        // horse_id stored as short code e.g. "J304" — extract last segment after "_"
+        const horseIdFull = horseIdM ? horseIdM[1] : '';
+        const horseId = horseIdFull.split('_').pop();
+
+        // Jockey — td[3] has jockeyid in href
+        const jockeyLink = tds.eq(3).find('a');
+        const jockeyName = jockeyLink.text().trim() || tds.eq(3).text().trim();
+        const jockeyHref = jockeyLink.attr('href') || '';
+        const jockeyIdM = jockeyHref.match(/jockeyid=([^&]+)/i);
+        const jockeyId = jockeyIdM ? jockeyIdM[1] : '';
+
+        // Trainer — td[4] has trainerid in href
+        const trainerLink = tds.eq(4).find('a');
+        const trainerName = trainerLink.text().trim() || tds.eq(4).text().trim();
+        const trainerHref = trainerLink.attr('href') || '';
+        const trainerIdM = trainerHref.match(/trainerid=([^&]+)/i);
+        const trainerId = trainerIdM ? trainerIdM[1] : '';
+
+        const actualWeightText = tds.eq(5).text().trim();
+        const actualWeight = parseFloat(actualWeightText) || null;
+
+        const declaredWeightText = tds.eq(6).text().trim();
+        const declaredWeight = parseInt(declaredWeightText) || null;
+
+        const drawText = tds.eq(7).text().trim();
+        const draw = parseInt(drawText) || 0;
+
+        horses.push({
+          horse_no: horseNo,
+          horse_name: horseName,
+          horse_id: horseId,
+          actual_weight: actualWeight,
+          jockey_name: jockeyName,
+          jockey_id: jockeyId,
+          draw: draw,
+          trainer_name: trainerName,
+          trainer_id: trainerId,
+          rating: null,
+          rating_change: '',
+          declared_weight: declaredWeight,
+          gear: '',
+          recent_form: '',
+        });
+      });
+
+      if (horses.length === 0) {
+        console.log(`[RacecardResults] Race ${raceNo}: no horses parsed, stopping`);
+        break;
+      }
+
+      allRaces.push({
+        race_no: raceNo,
+        race_class: raceClass,
+        distance,
+        track_type: trackType,
+        going: '',
+        horses,
+      });
+      console.log(`[RacecardResults] Race ${raceNo}: ${horses.length} horses`);
+    } catch (err) {
+      console.error(`[RacecardResults] Race ${raceNo} error:`, err.message);
+      break;
+    }
+    await sleep(300);
+  }
+
+  return { raceDate, racecourse, races: allRaces };
+}
+
 // ── Scrape racecard ────────────────────────────────────────────────────────
 // Scrapes the HKJC racecard for a specific date/racecourse/raceNo
 // Column indices confirmed from analysis:
@@ -535,84 +661,78 @@ async function scrapeFixtures() {
 // [12]評分+/- [13]排位體重 [14]排位體重+/- [15]最佳時間 [16]馬齡
 // [17]分齡讓磅 [18]性別 [19]今季獎金 [20]優先參賽 [21]上賽距今日數
 // [22]配備 [23]馬主 [24]父系 [25]母系 [26]進口類別
-async function scrapeRacecard() {
+// scrapeRacecard(raceDate?, racecourse?)
+// If raceDate+racecourse are provided, scrape that specific date directly.
+// Otherwise load the HKJC racecard index page to auto-detect the current race day.
+async function scrapeRacecard(raceDate, racecourse) {
+  const today = new Date().toISOString().split('T')[0];
+
+  if (raceDate && racecourse) {
+    // For past race dates, use the results page scraper
+    if (raceDate < today) {
+      console.log(`[Racecard] Past date ${raceDate} — using results page scraper`);
+      return scrapeRacecardFromResults(raceDate, racecourse);
+    }
+  }
+
+  // ── Future/current date: use Puppeteer HTML scraper ──────────────────────
   const page = await newPage();
   try {
-    // First load the racecard index page to get the race date and racecourse
-    await page.goto(
-      'https://racing.hkjc.com/zh-hk/local/information/racecard',
-      { waitUntil: 'networkidle0' }
-    );
-    await sleep(2000);
+    let totalRaces = 0;
 
-    // Extract the current race date and racecourse from the page URL or content
-    const pageInfo = await page.evaluate(() => {
-      // Look for date in URL or page content
-      const url = window.location.href;
-      const urlDateMatch = url.match(/racedate=(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
-      let raceDate = urlDateMatch ? `${urlDateMatch[1]}-${urlDateMatch[2]}-${urlDateMatch[3]}` : null;
+    if (raceDate && racecourse) {
+      // ── Targeted scrape: skip index page, detect total races from Race 1 page ──
+      console.log(`[Racecard] Targeted scrape: ${raceDate} ${racecourse}`);
+      const raceDateForUrl = raceDate.replace(/-/g, '/');
+      const race1Url = `https://racing.hkjc.com/zh-hk/local/information/racecard?racedate=${raceDateForUrl}&Racecourse=${racecourse}&RaceNo=1`;
+      await page.goto(race1Url, { waitUntil: 'networkidle0' });
+      await sleep(2000);
 
-      // Try to find date in page
-      if (!raceDate) {
-        const allText = document.body.innerText;
-        const dm = allText.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
-        if (dm) raceDate = `${dm[1]}-${String(dm[2]).padStart(2, '0')}-${String(dm[3]).padStart(2, '0')}`;
-      }
-      if (!raceDate) {
-        const dm = document.body.innerText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-        if (dm) raceDate = `${dm[3]}-${dm[2]}-${dm[1]}`;
-      }
+      // Don't try to detect total races from the page — HKJC uses JS navigation for tabs,
+      // so href-based detection is unreliable. Use a safe maximum and rely on early-break logic.
+      totalRaces = 12;
+      console.log(`[Racecard] Using max ${totalRaces} races for ${raceDate} ${racecourse}`);
+    } else {
+      // ── Auto-detect: load index page to find current race day ──
+      await page.goto(
+        'https://racing.hkjc.com/zh-hk/local/information/racecard',
+        { waitUntil: 'networkidle0' }
+      );
+      await sleep(2000);
 
-      // Try to find racecourse from page
-      let racecourse = 'ST';
-      const text = document.body.innerText;
-      if (text.includes('跑馬地')) racecourse = 'HV';
-      else if (text.includes('從化')) racecourse = 'CGA';
-
-      // Find total number of races - look for race links
-      const raceLinks = new Set();
-      document.querySelectorAll('a[href*="RaceNo"], a[href*="raceno"]').forEach(a => {
-        const m = (a.href || '').match(/[Rr]ace[Nn]o=(\d+)/);
-        if (m) raceLinks.add(parseInt(m[1]));
-      });
-
-      // Also try tab buttons or race number elements
-      document.querySelectorAll('[class*="tab"], [class*="race-no"], [class*="raceNo"]').forEach(el => {
-        const m = el.textContent.trim().match(/^(\d+)$/);
-        if (m && parseInt(m[1]) <= 12) raceLinks.add(parseInt(m[1]));
-      });
-
-      const maxRace = raceLinks.size > 0 ? Math.max(...raceLinks) : 0;
-
-      return { raceDate, racecourse, totalRaces: maxRace };
-    });
-
-    console.log(`[Racecard] Page info:`, pageInfo);
-
-    // If we couldn't determine date or race count, try the URL params
-    let { raceDate, racecourse, totalRaces } = pageInfo;
-
-    if (!raceDate) {
-      raceDate = new Date().toISOString().split('T')[0];
-    }
-
-    // If totalRaces is still 0, try to detect from the page directly
-    if (totalRaces === 0) {
-      // Try to get race count from a known racecard URL structure
-      const races = await page.evaluate(() => {
-        // Look for a dropdown or tab structure listing races
-        const opts = document.querySelectorAll('select option, [role="tab"], .race-tab, .f_tabItem');
-        const found = new Set();
-        opts.forEach(el => {
-          const m = el.textContent.trim().match(/第\s*(\d+)\s*場/) || el.textContent.trim().match(/^(\d+)$/);
-          if (m && parseInt(m[1]) <= 15) found.add(parseInt(m[1]));
+      const pageInfo = await page.evaluate(() => {
+        const url = window.location.href;
+        const urlDateMatch = url.match(/racedate=(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
+        let raceDate = urlDateMatch ? `${urlDateMatch[1]}-${urlDateMatch[2]}-${urlDateMatch[3]}` : null;
+        if (!raceDate) {
+          const dm = document.body.innerText.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+          if (dm) raceDate = `${dm[1]}-${String(dm[2]).padStart(2, '0')}-${String(dm[3]).padStart(2, '0')}`;
+        }
+        if (!raceDate) {
+          const dm = document.body.innerText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+          if (dm) raceDate = `${dm[3]}-${dm[2]}-${dm[1]}`;
+        }
+        let racecourse = 'ST';
+        const text = document.body.innerText;
+        if (text.includes('跑馬地')) racecourse = 'HV';
+        else if (text.includes('從化')) racecourse = 'CGA';
+        const raceLinks = new Set();
+        document.querySelectorAll('a[href*="RaceNo"], a[href*="raceno"], a').forEach(a => {
+          const m = (a.href || '').match(/[Rr]ace[Nn]o=(\d+)/);
+          if (m) raceLinks.add(parseInt(m[1]));
         });
-        return found.size;
+        document.querySelectorAll('[class*="tab"], [class*="race-no"], [class*="raceNo"]').forEach(el => {
+          const m = el.textContent.trim().match(/^(\d+)$/);
+          if (m && parseInt(m[1]) <= 12) raceLinks.add(parseInt(m[1]));
+        });
+        return { raceDate, racecourse, totalRaces: raceLinks.size > 0 ? Math.max(...raceLinks) : 0 };
       });
-      totalRaces = races || 10; // fallback to 10 if unknown
-    }
 
-    if (totalRaces === 0) totalRaces = 10;
+      console.log(`[Racecard] Page info:`, pageInfo);
+      raceDate = pageInfo.raceDate || new Date().toISOString().split('T')[0];
+      racecourse = pageInfo.racecourse;
+      totalRaces = pageInfo.totalRaces || 10;
+    }
 
     console.log(`[Racecard] Date: ${raceDate}, Racecourse: ${racecourse}, Total races: ${totalRaces}`);
 
@@ -624,105 +744,116 @@ async function scrapeRacecard() {
       const url = `https://racing.hkjc.com/zh-hk/local/information/racecard?racedate=${raceDateForUrl}&Racecourse=${racecourse}&RaceNo=${raceNo}`;
       try {
         await page.goto(url, { waitUntil: 'networkidle0' });
+        // Wait for the starter table to appear (JS-rendered content)
+        try {
+          await page.waitForSelector('table.starter, table', { timeout: 10000 });
+        } catch (_) { /* table may not exist for this race number */ }
         await sleep(1000);
 
         const raceData = await page.evaluate((rNo) => {
           const tables = Array.from(document.querySelectorAll('table'));
 
-          // Strategy 1: find table whose rows contain horse number links or have 20+ columns
-          let mainTable = null;
+          // The starter table has class containing "starter"
+          let mainTable = tables.find(t => t.className.includes('starter'));
 
-          // Try tables[4] first (5th table, known position on HKJC racecard)
-          // but verify it has horse data (≥5 rows with ≥10 cells)
-          for (let startIdx = 3; startIdx <= 7 && !mainTable; startIdx++) {
-            const t = tables[startIdx];
-            if (!t) continue;
-            const rows = Array.from(t.querySelectorAll('tbody tr'));
-            const validRows = rows.filter(r => r.querySelectorAll('td').length >= 10);
-            if (validRows.length >= 2) { mainTable = t; }
-          }
-
-          // Strategy 2: largest table with rows having ≥10 cells
+          // Fallback: find table with most rows having ≥20 cells (the full 27-column layout)
           if (!mainTable) {
             let best = 0;
             for (const t of tables) {
-              const cnt = Array.from(t.querySelectorAll('tbody tr')).filter(r => r.querySelectorAll('td').length >= 10).length;
+              const cnt = Array.from(t.querySelectorAll('tr')).filter(r => r.querySelectorAll('td').length >= 20).length;
+              if (cnt > best) { best = cnt; mainTable = t; }
+            }
+          }
+
+          // Second fallback: ≥10 cells
+          if (!mainTable) {
+            let best = 0;
+            for (const t of tables) {
+              const cnt = Array.from(t.querySelectorAll('tbody tr, tr')).filter(r => r.querySelectorAll('td').length >= 10).length;
               if (cnt > best) { best = cnt; mainTable = t; }
             }
           }
 
           if (!mainTable) return null;
 
-          // Extract race info from page header
-          let raceClass = '';
-          let distance = 0;
-          let trackType = '';
-          let going = '';
-
-          // Look for race info in the page
+          // ── Race info from body text ───────────────────────────────────────
           const pageText = document.body.innerText;
-          const distMatch = pageText.match(/(\d{4})\s*米/);
+
+          // Distance
+          let distance = 0;
+          const distMatch = pageText.match(/(\d{3,4})\s*米/);
           if (distMatch) distance = parseInt(distMatch[1]);
+
+          // Track type
+          let trackType = '';
           if (pageText.includes('全天候')) trackType = 'AWT';
           else if (pageText.includes('草地')) trackType = 'TURF';
 
-          // Try to extract race class from headings
-          const headings = document.querySelectorAll('h1, h2, h3, .f_title, [class*="title"]');
-          headings.forEach(h => {
-            const t = h.textContent;
-            const cm = t.match(/第\s*(\d+)\s*班/) || t.match(/班次\s*[:：]\s*(\d+)/);
-            if (cm) raceClass = cm[1];
-          });
+          // Race class — e.g. "第四班", "第三班", "國際一級"
+          let raceClass = '';
+          const classMatch = pageText.match(/第\s*[一二三四五六七八]\s*班|國際[一二三四五]\s*級|頭馬班|Group\s*\d/);
+          if (classMatch) raceClass = classMatch[0].replace(/\s/g, '');
 
+          // Going — e.g. "好地", "好/快", "快地"
+          let going = '';
+          const goingMatch = pageText.match(/跑道狀況[：:]\s*(\S+)/);
+          if (goingMatch) going = goingMatch[1];
+
+          // ── Horse rows ─────────────────────────────────────────────────────
           const horses = [];
-          mainTable.querySelectorAll('tbody tr').forEach(row => {
+          const rows = Array.from(mainTable.querySelectorAll('tr'));
+          rows.forEach(row => {
             const cells = Array.from(row.querySelectorAll('td'));
             if (cells.length < 10) return;
 
             const c = i => (cells[i]?.textContent || '').trim();
             const horseNo = parseInt(c(0));
-            if (!horseNo || horseNo > 20) return;
+            if (!horseNo || horseNo > 30) return; // skip header rows
 
-            // Extract horse ID from link in cell [4]
+            // horse_id: full ID from horse name link (cell[3])
+            // e.g. href="...horse?horseid=HK_2025_L133" → "HK_2025_L133"
             let horseId = '';
-            const horseLink = cells[4]?.querySelector('a');
+            const horseLink = cells[3]?.querySelector('a');
             if (horseLink) {
-              const m = (horseLink.href || '').match(/horseid=([A-Z]\d+)/i);
-              if (m) horseId = m[1].toUpperCase();
+              const m = (horseLink.href || '').match(/horseid=([A-Z0-9_]+)/i);
+              if (m) horseId = m[1];
             }
+            // Fallback: use short code from cell[4] (烙號)
             if (!horseId) horseId = c(4).replace(/\s/g, '');
 
-            // Extract jockey ID from link in cell [6]
+            // jockey_id from cell[6]
             let jockeyId = '';
             const jockeyLink = cells[6]?.querySelector('a');
             if (jockeyLink) {
-              const m = (jockeyLink.href || '').match(/jockeyid=([A-Z]+)/i);
+              const m = (jockeyLink.href || '').match(/jockeyid=([A-Za-z]+)/i);
               if (m) jockeyId = m[1].toUpperCase();
             }
+            if (!jockeyId) jockeyId = c(6);
 
-            // Extract trainer ID from link in cell [9]
+            // trainer_id from cell[9]
             let trainerId = '';
             const trainerLink = cells[9]?.querySelector('a');
             if (trainerLink) {
-              const m = (trainerLink.href || '').match(/trainerid=([A-Z]+)/i);
+              const m = (trainerLink.href || '').match(/trainerid=([A-Za-z]+)/i);
               if (m) trainerId = m[1].toUpperCase();
             }
+            if (!trainerId) trainerId = c(9);
 
             horses.push({
-              horse_no: horseNo,
-              recent_form: c(1),
-              horse_name: c(3),
-              horse_id: horseId,
-              actual_weight: parseFloat(c(5)) || null,
-              jockey_name: c(6),
-              jockey_id: jockeyId,
-              draw: parseInt(c(8)) || 0,
-              trainer_name: c(9),
-              trainer_id: trainerId,
-              rating: parseInt(c(11)) || null,
-              rating_change: c(12),
+              horse_no:        horseNo,
+              recent_form:     c(1),
+              horse_name:      c(3),
+              horse_id:        horseId,
+              actual_weight:   parseFloat(c(5)) || null,
+              jockey_name:     c(6),
+              jockey_id:       jockeyId,
+              draw:            parseInt(c(8)) || 0,
+              trainer_name:    c(9),
+              trainer_id:      trainerId,
+              rating:          parseInt(c(11)) || null,
+              rating_change:   c(12),
               declared_weight: parseInt(c(13)) || null,
-              gear: c(22),
+              gear:            c(22),
             });
           });
 
@@ -1470,6 +1601,664 @@ async function closeBrowser() {
   }
 }
 
+// ── Scrape WindTracker ─────────────────────────────────────────────────────
+// Returns { lastUpdate, racecourse, going, trackIndex, temperature, humidity, rainfall, soilMoisture, positions }
+// positions: array of { position, direction, speed, gust }
+async function scrapeWindTracker() {
+  const page = await newPage();
+  try {
+    await page.goto('https://racing.hkjc.com/zh-hk/local/info/windtracker', {
+      waitUntil: 'networkidle0', timeout: 30000
+    });
+    await sleep(3000);
+
+    return await page.evaluate(() => {
+      // Last update
+      const lastUpdateEl = document.querySelector('.m_lastUpdate, [class*="lastUpdate"], [class*="last_update"]');
+      const lastUpdate = lastUpdateEl ? lastUpdateEl.innerText.trim() : '';
+
+      // Race info (date, going, track index)
+      const raceInfoEl = document.querySelector('.m_raceInfo, [class*="raceInfo"]');
+      const raceInfoText = raceInfoEl ? raceInfoEl.innerText.trim() : document.body.innerText.match(/夜賽.*?(?:\n|$)/)?.[0] || '';
+
+      // Going & track index
+      const goingEl = document.querySelector('[class*="going"], [class*="Going"]');
+      const going = goingEl ? goingEl.innerText.trim() : '';
+
+      const trackIndexEl = document.querySelector('[class*="trackIndex"], [class*="trackindex"], [class*="degree"]');
+      const trackIndex = trackIndexEl ? trackIndexEl.innerText.trim() : '';
+
+      // Weather data
+      const tempEl = document.querySelector('[class*="temperature"], [class*="temp"]');
+      const temperature = tempEl ? tempEl.innerText.trim() : '';
+
+      const humidityEl = document.querySelector('[class*="humidity"]');
+      const humidity = humidityEl ? humidityEl.innerText.trim() : '';
+
+      const soilEl = document.querySelector('[class*="soil"]');
+      const soilMoisture = soilEl ? soilEl.innerText.trim() : '';
+
+      // Wind position data: each windValueItem has direction + speed (m_wind1) + gust (m_wind2)
+      const positions = Array.from(document.querySelectorAll('.windValueItem')).map((item, idx) => {
+        const wind1 = item.querySelector('.m_wind1');
+        const wind2 = item.querySelector('.m_wind2');
+        const dirEl = wind1 ? wind1.querySelector('.windValue p:first-child') : null;
+        const speedEl = wind1 ? wind1.querySelector('.windValue p:last-child') : null;
+        const gustEl = wind2 ? wind2.querySelector('p') : null;
+        // position label from parent track wrapper
+        const trackWrapper = item.closest('[class*="position"], [class*="posi"]');
+        const posClass = trackWrapper ? trackWrapper.className : '';
+        return {
+          index: idx + 1,
+          posClass,
+          direction: dirEl ? dirEl.innerText.trim() : '',
+          speed: speedEl ? speedEl.innerText.trim() : '',
+          gust: gustEl ? gustEl.innerText.trim() : '',
+        };
+      });
+
+      // Get the full container text for fallback display
+      const container = document.querySelector('.m_windTrackerContainer');
+      const fullText = container ? container.innerText : '';
+
+      // Going from body text
+      const bodyText = document.body.innerText;
+      const goingMatch = bodyText.match(/場地\s+([\u4e00-\u9fff\s]+)/);
+      const goingText = goingMatch ? goingMatch[1].trim() : '';
+
+      // Track index (度地儀指數)
+      const trackIndexMatch = bodyText.match(/度地儀指數[\s\S]*?([\d.]+)/);
+      const trackIndexVal = trackIndexMatch ? trackIndexMatch[1] : '';
+
+      // Temperature
+      const tempMatch = bodyText.match(/([\d.]+)°C/);
+      const temperatureVal = tempMatch ? tempMatch[1] + '°C' : '';
+
+      // Humidity
+      const humidityMatch = bodyText.match(/相對濕度[\s\S]*?([\d.]+%)/);
+      const humidityVal = humidityMatch ? humidityMatch[1] : '';
+
+      // Soil moisture
+      const soilMatch = bodyText.match(/土壤濕度[\s\S]*?([\d.]+%)/);
+      const soilVal = soilMatch ? soilMatch[1] : '';
+
+      // Rainfall
+      const rainfallMatch = bodyText.match(/總雨量[\s\S]*?([\d.]+毫米)/);
+      const rainfallVal = rainfallMatch ? rainfallMatch[1] : '';
+
+      // Last update
+      const lastUpdateMatch = bodyText.match(/最後更新[：:]\s*([\d/\s:]+)/);
+      const lastUpdateVal = lastUpdateMatch ? lastUpdateMatch[1].trim() : '';
+
+      // Race info line
+      const raceInfoMatch = bodyText.match(/(夜賽|日賽)\s+\d+場賽事.*?(?:\n|$)/);
+      const raceInfoVal = raceInfoMatch ? raceInfoMatch[0].trim() : '';
+
+      return {
+        lastUpdate: lastUpdateVal,
+        raceInfo: raceInfoVal,
+        going: goingText,
+        trackIndex: trackIndexVal,
+        temperature: temperatureVal,
+        humidity: humidityVal,
+        rainfall: rainfallVal,
+        soilMoisture: soilVal,
+        positions,
+        fullText,
+      };
+    });
+  } finally {
+    await page.close();
+  }
+}
+
+// ── Scrape Draw for a specific race ──────────────────────────────────────────
+// Returns array of { draw, totalRaces, win, place2, place3, place4, winRate, quinellaRate, placeRate, top4Rate }
+// for the matching race identified by raceNo on today's draw page
+async function scrapeDrawForRace(raceNo) {
+  const page = await newPage();
+  try {
+    await page.goto('https://racing.hkjc.com/zh-hk/local/information/draw', {
+      waitUntil: 'networkidle0', timeout: 30000
+    });
+    await sleep(2000);
+
+    return await page.evaluate((targetRaceNo) => {
+      // The draw page uses a single table with thead rows acting as section dividers.
+      // We walk ALL rows in the table (thead + tbody combined via table.rows) to correctly
+      // slice the data rows that belong to the target race section.
+      const tables = document.querySelectorAll('table.table_bd');
+      let result = null;
+
+      tables.forEach(table => {
+        if (result) return; // already found
+
+        // Collect all rows in document order
+        const allRows = Array.from(table.rows);
+
+        // Find the row index of the target race header and the next race header
+        let startIdx = -1;
+        let endIdx = allRows.length;
+
+        for (let i = 0; i < allRows.length; i++) {
+          const tr = allRows[i];
+          if (!tr.id || !tr.id.startsWith('race')) continue;
+          const raceNum = parseInt(tr.id.replace('race', ''), 10);
+          if (raceNum === targetRaceNo) {
+            startIdx = i;
+          } else if (startIdx !== -1) {
+            // This is the next race header — stop here
+            endIdx = i;
+            break;
+          }
+        }
+
+        if (startIdx === -1) return; // target race not in this table
+
+        const headerTr = allRows[startIdx];
+        const headerText = headerTr.querySelector('td') ? headerTr.querySelector('td').innerText.trim() : '';
+
+        // Data rows are between startIdx+1 and endIdx (exclusive)
+        const dataRows = allRows.slice(startIdx + 1, endIdx);
+        const drawData = [];
+        let favText = '';
+
+        dataRows.forEach(tr => {
+          const cells = tr.querySelectorAll('td');
+          if (cells.length >= 9) {
+            const draw = parseInt(cells[0].innerText.trim(), 10);
+            if (!isNaN(draw) && draw > 0) {
+              drawData.push({
+                draw,
+                totalRaces: parseInt(cells[1].innerText.trim(), 10) || 0,
+                win: parseInt(cells[2].innerText.trim(), 10) || 0,
+                place2: parseInt(cells[3].innerText.trim(), 10) || 0,
+                place3: parseInt(cells[4].innerText.trim(), 10) || 0,
+                place4: parseInt(cells[5].innerText.trim(), 10) || 0,
+                winRate: cells[6].innerText.trim(),
+                quinellaRate: cells[7].innerText.trim(),
+                placeRate: cells[8].innerText.trim(),
+                top4Rate: cells[9] ? cells[9].innerText.trim() : '',
+              });
+            } else if (cells[0].innerText.trim() === '' || isNaN(draw)) {
+              // Could be a summary/favorite row
+              const rowText = tr.innerText.trim();
+              if (rowText) favText = rowText;
+            }
+          }
+        });
+
+        result = { raceNo: targetRaceNo, headerText, drawData, favText };
+      });
+
+      return result;
+    }, raceNo);
+  } finally {
+    await page.close();
+  }
+}
+
+// ── Scrape SpeedGuide for a specific race ────────────────────────────────────
+// Returns { raceNo, lastUpdate, horses: [ { horseNo, horseName, draw, requiredEnergy, pastRaces, bestEnergy, sameCourseBest, fitnessRating, speedEstimate, estimateDiff } ] }
+async function scrapeSpeedGuide(raceNo) {
+  const page = await newPage();
+  try {
+    await page.goto(
+      `https://racing.hkjc.com/zh-hk/local/info/speedpro/speedguide?raceno=${raceNo}`,
+      { waitUntil: 'networkidle0', timeout: 30000 }
+    );
+    await sleep(3000);
+
+    return await page.evaluate((targetRaceNo) => {
+      // Last update
+      const bodyText = document.body.innerText;
+      const lastUpdateMatch = bodyText.match(/最後更新時間[：:]\s*([\d\-\s:AMP]+)/i);
+      const lastUpdate = lastUpdateMatch ? lastUpdateMatch[1].trim() : '';
+
+      // The main data table: table.datatable
+      const table = document.querySelector('table.datatable');
+      if (!table) return { raceNo: targetRaceNo, lastUpdate, horses: [] };
+
+      const horses = [];
+      const rows = table.querySelectorAll('tbody tr');
+      rows.forEach(tr => {
+        const cells = tr.querySelectorAll('td');
+        if (cells.length < 13) return;
+        const horseNo = cells[0].innerText.trim();
+        const horseName = cells[1].innerText.trim();
+        const draw = cells[2].innerText.trim();
+        const requiredEnergy = cells[3].innerText.trim();
+        // cells[4..8] = past 5 races (energy + course + going info)
+        const pastRaces = [4,5,6,7,8].map(i => cells[i] ? cells[i].innerText.trim().replace(/\s+/g, ' ') : '');
+        const bestEnergy = cells[9] ? cells[9].innerText.trim() : '';
+        const sameCourseBest = cells[10] ? cells[10].innerText.trim() : '';
+        // Fitness rating icon (formGuide class)
+        const fitnessEl = cells[11] ? cells[11].querySelector('img') : null;
+        const fitnessSrc = fitnessEl ? fitnessEl.src : '';
+        let fitnessRating = '';
+        if (fitnessSrc.includes('formGuide_3up')) fitnessRating = '↑↑↑';
+        else if (fitnessSrc.includes('formGuide_2up')) fitnessRating = '↑↑';
+        else if (fitnessSrc.includes('formGuide_1up') || fitnessSrc.includes('1up')) fitnessRating = '↑';
+        else if (fitnessSrc.includes('thumb_down') || fitnessSrc.includes('thumbdown')) fitnessRating = '↓';
+        else fitnessRating = cells[11] ? cells[11].innerText.trim() : '';
+
+        const speedEstimate = cells[12] ? cells[12].innerText.trim() : '';
+        const estimateDiff = cells[13] ? cells[13].innerText.trim() : '';
+
+        if (horseNo && horseName) {
+          horses.push({ horseNo, horseName, draw, requiredEnergy, pastRaces, bestEnergy, sameCourseBest, fitnessRating, speedEstimate, estimateDiff });
+        }
+      });
+
+      // Map image
+      const mapImg = document.querySelector('img.speedguide-map');
+      const mapImageUrl = mapImg ? mapImg.src : '';
+
+      return { raceNo: targetRaceNo, lastUpdate, mapImageUrl, horses };
+    }, raceNo);
+  } finally {
+    await page.close();
+  }
+}
+
+// ── Scrape sectional times for a race ─────────────────────────────────────
+// URL format: /displaysectionaltime?racedate=DD/MM/YYYY&RaceNo=N
+// raceDate should be in YYYY-MM-DD or DD/MM/YYYY format
+// Returns { raceDate, racecourse, raceNo, raceClass, distance, trackType, going,
+//           raceSplits: [string], cumulativeTimes: [string],
+//           horses: [ { finishPosition, horseNo, horseName, horseId, finishTime,
+//                       segments: [{ seg, runningPos, gap, times:[string] }] } ] }
+async function scrapeSectionalTime(raceDate, raceNo) {
+  // Normalise date to DD/MM/YYYY for URL
+  let ddmmyyyy;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raceDate)) {
+    const [y, m, d] = raceDate.split('-');
+    ddmmyyyy = `${d}/${m}/${y}`;
+  } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(raceDate)) {
+    ddmmyyyy = raceDate;
+  } else if (/^\d{4}\/\d{2}\/\d{2}$/.test(raceDate)) {
+    const [y, m, d] = raceDate.split('/');
+    ddmmyyyy = `${d}/${m}/${y}`;
+  } else {
+    throw new Error(`scrapeSectionalTime: unrecognised raceDate format: ${raceDate}`);
+  }
+
+  const page = await newPage();
+  try {
+    const url = `https://racing.hkjc.com/zh-hk/local/information/displaysectionaltime?racedate=${encodeURIComponent(ddmmyyyy)}&RaceNo=${raceNo}`;
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
+    await sleep(2000);
+
+    return await page.evaluate((targetRaceNo, ddmmyyyy) => {
+      const bodyText = document.body.innerText;
+
+      // Check if data is available
+      if (bodyText.includes('將於稍後公佈') || bodyText.includes('沒有相關資料')) {
+        return { error: 'no_data', raceNo: targetRaceNo };
+      }
+
+      // ── Race info from body text ──────────────────────────────────────────
+      // e.g. "第 1 場 第五班 - 1650米 - (40-0) - 全天候跑道 - 好地"
+      // or   "第 9 場 第三班 - 1200米 - (80-60) - 草地 - "B" 賽道 - 好地至快地"
+      let raceClass = '', distance = 0, trackType = '', going = '';
+      // e.g. "第 1 場 第五班 - 1650米 - (40-0) - 全天候跑道 - 好地"
+      // e.g. "第 9 場 第三班 - 1200米 - (80-60) - 草地 - "B" 賽道 - 好地至快地"
+      const raceHeaderMatch = bodyText.match(/第\s*\d+\s*場\s+(.+?)\s+-\s+(\d+)米\s+-\s+\([^)]+\)\s+-\s+([^\n\-]+?)(?:\s+-[^\n]+?)?\s+-\s+([^\n]+)/);
+      if (raceHeaderMatch) {
+        raceClass = raceHeaderMatch[1].trim();
+        distance = parseInt(raceHeaderMatch[2], 10);
+        const trackRaw = raceHeaderMatch[3].trim();
+        trackType = trackRaw.includes('全天候') ? 'AWT' : 'TURF';
+        going = raceHeaderMatch[4].replace(/\s*\n.*/s, '').trim();
+      }
+
+      // Racecourse from page header: "賽事日期: DD/MM/YYYY, 沙田" or "跑馬地"
+      let racecourse = '';
+      const rcMatch = bodyText.match(/賽事日期[：:][^\n,，]+[,，]\s*(沙田|跑馬地|從化)/);
+      if (rcMatch) {
+        const rcMap = { '沙田': 'ST', '跑馬地': 'HV', '從化': 'CGA' };
+        racecourse = rcMap[rcMatch[1]] || rcMatch[1];
+      }
+
+      // ── Table[2]: race-level cumulative times and splits ──────────────────
+      const tables = Array.from(document.querySelectorAll('table'));
+      const summaryTable = tables.find(t => t.className.includes('f_fl') && t.className.includes('f_tac'));
+      const cumulativeTimes = [];
+      const raceSplits = [];
+      if (summaryTable) {
+        const rows = summaryTable.querySelectorAll('tr');
+        if (rows[0]) {
+          Array.from(rows[0].querySelectorAll('td')).forEach(td => {
+            const t = td.innerText.trim();
+            const m = t.match(/\(([^)]+)\)/);
+            if (m) cumulativeTimes.push(m[1]);
+          });
+        }
+        if (rows[1]) {
+          Array.from(rows[1].querySelectorAll('td')).forEach(td => {
+            const t = td.innerText.trim();
+            if (t && t !== '分段時間:') {
+              // May contain multiple numbers (e.g. "23.79 12.06 11.73")
+              t.split(/\s+/).forEach(part => {
+                if (/^\d+\.\d+$/.test(part)) raceSplits.push(part);
+              });
+            }
+          });
+        }
+      }
+
+      // ── Table[3]: per-horse data ──────────────────────────────────────────
+      const raceTable = tables.find(t => t.className.includes('race_table'));
+      const horses = [];
+      if (raceTable) {
+        // rows[0] = header, rows[1] = "分段時間", rows[2] = segment labels, rows[3+] = data
+        const rows = Array.from(raceTable.querySelectorAll('tr'));
+
+        rows.slice(3).forEach(tr => {
+          const cells = Array.from(tr.querySelectorAll('td'));
+          if (cells.length < 4) return;
+
+          const finishPosition = parseInt(cells[0].innerText.trim(), 10);
+          if (isNaN(finishPosition)) return;
+
+          const horseNo = parseInt(cells[1].innerText.trim(), 10);
+          const horseNameRaw = cells[2].innerText.trim();
+          // Extract horse ID from brackets: e.g. "大利好運 (H234)" → horseName="大利好運", codeStr="H234"
+          const nameMatch = horseNameRaw.match(/^(.+?)\s*\(([A-Z]\d+)\)$/);
+          const horseName = nameMatch ? nameMatch[1].trim() : horseNameRaw;
+          const horseCode = nameMatch ? nameMatch[2] : '';
+          // horse_id will be resolved server-side using raceDate year
+          const finishTime = cells[cells.length - 1].innerText.trim();
+
+          // Segment cells: cells[3] to cells[cells.length-2] (6 segment columns)
+          const segments = [];
+          for (let i = 3; i < cells.length - 1; i++) {
+            const cellText = cells[i].innerText.trim();
+            if (!cellText) { segments.push(null); continue; }
+
+            // Cell format: "{pos}{gap} {time1} {time2?} {time3?}"
+            // e.g. "4 2-3/4 23.49" or "52-3/4 23.79 11.94 11.85" or "1 N 23.56 11.81 11.75"
+            const parts = cellText.split(/\s+/);
+            const times = [];
+            let runningPos = '';
+            let gap = '';
+            let parsingTimes = false;
+
+            for (const part of parts) {
+              if (/^\d+\.\d+$/.test(part)) {
+                parsingTimes = true;
+                times.push(part);
+              } else if (!parsingTimes) {
+                // Position/gap parts (could be "1", "3/4", "2-3/4", "N", "H", numbers)
+                if (/^\d+$/.test(part) && !runningPos) {
+                  runningPos = part;
+                } else {
+                  gap += (gap ? ' ' : '') + part;
+                }
+              }
+            }
+
+            segments.push({
+              seg: i - 2,
+              runningPos,
+              gap,
+              times,
+            });
+          }
+
+          horses.push({ finishPosition, horseNo, horseName, horseCode, finishTime, segments });
+        });
+      }
+
+      return {
+        raceDate: ddmmyyyy,
+        racecourse,
+        raceNo: targetRaceNo,
+        raceClass,
+        distance,
+        trackType,
+        going,
+        cumulativeTimes,
+        raceSplits,
+        horses,
+      };
+    }, raceNo, ddmmyyyy);
+
+  } finally {
+    await page.close();
+  }
+}
+
+// ── Save sectional times to DB ─────────────────────────────────────────────
+async function saveSectionalTime(data) {
+  if (!data || data.error) {
+    console.warn('[saveSectionalTime] No data or error:', data?.error);
+    return 0;
+  }
+
+  // Normalise raceDate to YYYY-MM-DD for DB
+  let dbDate;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(data.raceDate)) {
+    const [d, m, y] = data.raceDate.split('/');
+    dbDate = `${y}-${m}-${d}`;
+  } else {
+    dbDate = data.raceDate;
+  }
+
+  // Derive the season year from raceDate for building horse_id
+  // HKJC season starts in September; if month < 9, year is current year's season start
+  const year = parseInt(dbDate.split('-')[0], 10);
+  const month = parseInt(dbDate.split('-')[1], 10);
+  const seasonYear = month >= 9 ? year : year - 1;
+
+  let saved = 0;
+  for (const horse of data.horses) {
+    const segs = horse.segments.filter(s => s !== null);
+    const getTime = (idx) => {
+      const seg = horse.segments[idx];
+      if (!seg || !seg.times || seg.times.length === 0) return null;
+      // Return the first (segment total) time in the cell
+      return seg.times[0];
+    };
+    // Segment sub-times (200m splits within a 400m segment) stored in later items
+    // We store the primary segment time only in seg1-seg6
+    const horseId = horse.horseCode ? `HK_${seasonYear}_${horse.horseCode}` : null;
+
+    try {
+      await pool.query(
+        `INSERT INTO race_sectional_times
+           (race_date, racecourse, race_no, race_class, distance, track_type, going,
+            finish_position, horse_no, horse_id, horse_name, finish_time,
+            seg1, seg2, seg3, seg4, seg5, seg6, cumulative_times, running_positions)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+         ON CONFLICT (race_date, race_no, horse_no) DO UPDATE SET
+           racecourse=$2, race_class=$4, distance=$5, track_type=$6, going=$7,
+           finish_position=$8, horse_id=$10, horse_name=$11, finish_time=$12,
+           seg1=$13, seg2=$14, seg3=$15, seg4=$16, seg5=$17, seg6=$18,
+           cumulative_times=$19, running_positions=$20, scraped_at=NOW()`,
+        [
+          dbDate,
+          data.racecourse || null,
+          data.raceNo,
+          data.raceClass || null,
+          data.distance || null,
+          data.trackType || null,
+          data.going || null,
+          horse.finishPosition,
+          horse.horseNo,
+          horseId,
+          horse.horseName,
+          horse.finishTime || null,
+          getTime(0), getTime(1), getTime(2), getTime(3), getTime(4), getTime(5),
+          JSON.stringify(data.cumulativeTimes),
+          segs.map(s => `${s.runningPos}${s.gap ? '-' + s.gap : ''}`).join(' ') || null,
+        ]
+      );
+      saved++;
+    } catch (e) {
+      console.error(`[saveSectionalTime] Error saving horse ${horse.horseNo}:`, e.message);
+    }
+  }
+  console.log(`[saveSectionalTime] Saved ${saved}/${data.horses.length} horses for ${dbDate} R${data.raceNo}`);
+  return saved;
+}
+
+// ── Scrape Vet Record for a specific race ─────────────────────────────────────
+// URL: /zh-hk/local/information/veterinaryrecord?racedate=DD/MM/YYYY&Racecourse=ST&RaceNo=N
+// Returns array of vet record entries, or [] if no data
+async function scrapeVetRecord(raceDate, racecourse, raceNo) {
+  // Normalise date to DD/MM/YYYY
+  let ddmmyyyy;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raceDate)) {
+    const [y, m, d] = raceDate.split('-');
+    ddmmyyyy = `${d}/${m}/${y}`;
+  } else {
+    ddmmyyyy = raceDate;
+  }
+  const rc = (racecourse || 'ST').toUpperCase();
+  const url = `https://racing.hkjc.com/zh-hk/local/information/veterinaryrecord?racedate=${encodeURIComponent(ddmmyyyy)}&Racecourse=${rc}&RaceNo=${raceNo}`;
+
+  const page = await newPage();
+  try {
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
+    await sleep(2000);
+
+    return await page.evaluate(() => {
+      // Check for no-data message
+      const errorEl = document.querySelector('#errorContainer');
+      if (errorEl && errorEl.innerText && errorEl.innerText.includes('沒有相關資料')) {
+        return [];
+      }
+
+      const records = [];
+      // Find all tables with class table_bd
+      const tables = document.querySelectorAll('table.table_bd');
+      tables.forEach(table => {
+        const rows = table.querySelectorAll('tbody tr');
+        rows.forEach(tr => {
+          const cells = tr.querySelectorAll('td');
+          if (cells.length < 2) return;
+          const entry = {};
+          cells.forEach((td, i) => {
+            entry[`col${i}`] = td.innerText.trim();
+          });
+          // Try to extract horse number and name from first columns
+          if (cells.length >= 3) {
+            entry.horseNo = cells[0].innerText.trim();
+            entry.horseName = cells[1].innerText.trim();
+            entry.details = Array.from(cells).slice(2).map(c => c.innerText.trim()).join(' | ');
+          }
+          if (entry.horseNo || entry.horseName) records.push(entry);
+        });
+      });
+
+      // If no table_bd found, try commContent paragraphs
+      if (records.length === 0) {
+        const content = document.querySelector('#innerContent .commContent');
+        if (content) {
+          // Try to parse any table inside
+          const allRows = content.querySelectorAll('tr');
+          allRows.forEach(tr => {
+            const cells = tr.querySelectorAll('td');
+            if (cells.length < 2) return;
+            const entry = {
+              horseNo: cells[0].innerText.trim(),
+              horseName: cells[1].innerText.trim(),
+              details: Array.from(cells).slice(2).map(c => c.innerText.trim()).join(' | '),
+            };
+            if (entry.horseNo || entry.horseName) records.push(entry);
+          });
+        }
+      }
+
+      return records;
+    });
+  } finally {
+    await page.close();
+  }
+}
+
+// ── Scrape Trackwork for a specific race ──────────────────────────────────────
+// URL: /zh-hk/local/information/localtrackwork?racedate=DD/MM/YYYY&Racecourse=ST&RaceNo=N
+// Returns { declared: [...], reserves: [...] } each entry has:
+//   horseNo, horseName, trainer, recentForm, barrierTrial, gallop, trotting, swimming, treadmill, aquaWalker, spelling
+async function scrapeTrackwork(raceDate, racecourse, raceNo) {
+  let ddmmyyyy;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raceDate)) {
+    const [y, m, d] = raceDate.split('-');
+    ddmmyyyy = `${d}/${m}/${y}`;
+  } else {
+    ddmmyyyy = raceDate;
+  }
+  const rc = (racecourse || 'ST').toUpperCase();
+  const url = `https://racing.hkjc.com/zh-hk/local/information/localtrackwork?racedate=${encodeURIComponent(ddmmyyyy)}&Racecourse=${rc}&RaceNo=${raceNo}`;
+
+  const page = await newPage();
+  try {
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
+    await sleep(2000);
+
+    return await page.evaluate(() => {
+      // Check for no-data message
+      const bodyText = document.body.innerText;
+      if (bodyText.includes('沒有相關資料')) {
+        return { declared: [], reserves: [] };
+      }
+
+      function parseTable(table) {
+        if (!table) return [];
+        const horses = [];
+        const rows = table.querySelectorAll('tbody tr');
+        rows.forEach(tr => {
+          // Skip header rows
+          if (tr.querySelector('th') || tr.classList.contains('bg_blue')) return;
+          const cells = tr.querySelectorAll('td');
+          if (cells.length < 2) return;
+
+          const col0 = cells[0] ? cells[0].innerText.trim() : '';
+          const col1 = cells[1] ? cells[1].innerText.trim() : '';
+          if (!col0 && !col1) return;
+
+          // col1 contains horse name link, trainer, and recent form
+          const horseNameEl = cells[1] ? cells[1].querySelector('a') : null;
+          const horseName = horseNameEl ? horseNameEl.innerText.trim() : col1.split('\n')[0].trim();
+          const lines = col1.split('\n').map(l => l.trim()).filter(Boolean);
+          const trainer = lines.length > 1 ? lines[1] : '';
+          const recentForm = lines.length > 2 ? lines.slice(2).join(' ') : '';
+
+          const getCell = cls => {
+            const el = tr.querySelector(`td.${cls}`);
+            return el ? el.innerText.trim() : '';
+          };
+
+          horses.push({
+            horseNo: col0,
+            horseName,
+            trainer,
+            recentForm,
+            barrierTrial: getCell('BarrierTrial'),
+            gallop: getCell('Gallop'),
+            trotting: getCell('Trotting'),
+            swimming: getCell('Swimming'),
+            treadmill: getCell('Treadmill'),
+            aquaWalker: getCell('AquaWalker'),
+            spelling: getCell('Spelling'),
+          });
+        });
+        return horses;
+      }
+
+      const containers = document.querySelectorAll('div.trackwork_content');
+      const declared = containers[0] ? parseTable(containers[0].querySelector('table.table_bd')) : [];
+      const reserves = containers[1] ? parseTable(containers[1].querySelector('table.table_bd')) : [];
+
+      return { declared, reserves };
+    });
+  } finally {
+    await page.close();
+  }
+}
+
 module.exports = {
   scrapeJockeyList,
   scrapeJockeyPastRec,
@@ -1494,4 +2283,11 @@ module.exports = {
   getKnownJockeys,
   getKnownTrainers,
   closeBrowser,
+  scrapeWindTracker,
+  scrapeDrawForRace,
+  scrapeSpeedGuide,
+  scrapeSectionalTime,
+  saveSectionalTime,
+  scrapeVetRecord,
+  scrapeTrackwork,
 };

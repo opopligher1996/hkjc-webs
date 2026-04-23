@@ -65,7 +65,7 @@ router.get('/filters', async (req, res) => {
     const [racecourses, track_types, race_classes, goings, draws] = await Promise.all([
       pool.query(`SELECT DISTINCT racecourse FROM race_records WHERE racecourse IS NOT NULL AND racecourse != '' ORDER BY racecourse`),
       pool.query(`SELECT DISTINCT track_type FROM race_records WHERE track_type IS NOT NULL AND track_type != '' ORDER BY track_type`),
-      pool.query(`SELECT DISTINCT race_class FROM race_records WHERE race_class IS NOT NULL AND race_class != '' ORDER BY race_class`),
+      pool.query(`SELECT DISTINCT race_class FROM race_records WHERE race_class IS NOT NULL AND race_class != '' AND race_class NOT LIKE '%草地%' AND race_class != '全天候' ORDER BY race_class`),
       pool.query(`SELECT DISTINCT going FROM race_records WHERE going IS NOT NULL AND going != '' ORDER BY going`),
       pool.query(`SELECT DISTINCT draw FROM race_records WHERE draw IS NOT NULL AND draw > 0 ORDER BY draw`),
     ]);

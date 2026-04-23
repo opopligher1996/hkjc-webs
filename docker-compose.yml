@@ -6,14 +6,14 @@ services:
     container_name: hkjc-postgres
     environment:
       POSTGRES_DB: hkjc
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: hkjcadmin
+      POSTGRES_PASSWORD: hkjc@2024!
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
     ports:
       - "5434:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U hkjcadmin -d hkjc"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -27,8 +27,8 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: hkjc
-      DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_USER: hkjcadmin
+      DB_PASSWORD: hkjc@2024!
       PORT: 3001
       NODE_ENV: production
     ports:
@@ -48,6 +48,3 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
-
-volumes:
-  postgres_data:

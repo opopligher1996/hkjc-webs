@@ -21,6 +21,7 @@ yarn-error.log*
 
 # Docker volumes
 postgres-data/
+data/
 
 # OS
 .DS_Store
@@ -35,6 +36,12 @@ Thumbs.db
 # Debug scripts
 debug_*.js
 backend/debug_*.js
+
+# Scraped / temp output files
+*.html
+*.screenshot.png
+*.pdf
+backend/output/
 
 # Test coverage
 coverage/

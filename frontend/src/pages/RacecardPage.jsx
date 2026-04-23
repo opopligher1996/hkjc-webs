@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getNextRace, getRacecard, getFixtures, triggerScrape } from '../api';
+import WindTrackerPanel from '../components/WindTrackerPanel';
+import DrawPanel from '../components/DrawPanel';
+import SpeedGuidePanel from '../components/SpeedGuidePanel';
+import SectionalTimesPanel from '../components/SectionalTimesPanel';
+import JockeyTrainerAnalysisPanel from '../components/JockeyTrainerAnalysisPanel';
+import VetRecordPanel from '../components/VetRecordPanel';
+import TrackworkPanel from '../components/TrackworkPanel';
 
 const BASE_URL = '/api';
 
@@ -69,8 +76,12 @@ export default function RacecardPage() {
     setScraping(true);
     setScrapeMsg('正在啟動...');
 
+    // Derive racecourse from fixtures list for the selected date
+    const fixture = fixtures.find(f => f.race_date === selectedDate);
+    const racecourse = fixture?.racecourse || 'ST';
+
     try {
-      await triggerScrape('racecard');
+      await triggerScrape('racecard', { date: selectedDate, racecourse });
     } catch (e) {
       // 409 = already running, or timeout — proceed to SSE anyway
     }
@@ -129,6 +140,9 @@ export default function RacecardPage() {
     <div>
       <h1 className="page-title">排位表</h1>
 
+      {/* 天氣及跑道狀況 — 頁面最上方 */}
+      <WindTrackerPanel />
+
       <div className="scrape-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button className="btn btn-success" onClick={handleScrapeRacecard} disabled={scraping}>
           {scraping ? '更新中...' : '更新排位表'}
@@ -186,6 +200,15 @@ export default function RacecardPage() {
                       {currentRace.distance && <span>{currentRace.distance}米</span>}
                       {currentRace.track_type && <span>{currentRace.track_type}</span>}
                       {currentRace.going && <span>場地：{currentRace.going}</span>}
+                      <a
+                        href={`https://racing.hkjc.com/zh-hk/local/information/racecard?racedate=${selectedDate}&Racecourse=${currentRace.racecourse || 'ST'}&RaceNo=${currentRace.race_no}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.82em', padding: '2px 10px', textDecoration: 'none', marginLeft: 8 }}
+                      >
+                        HKJC 官網
+                      </a>
                     </div>
 
                     <div className="table-wrapper" style={{ overflowX: 'auto' }}>
@@ -230,6 +253,43 @@ export default function RacecardPage() {
                         </tbody>
                       </table>
                     </div>
+
+                    {/* 檔位分析 */}
+                    <DrawPanel raceNo={currentRace.race_no} />
+
+                    {/* 步速形勢分析 */}
+                    <SpeedGuidePanel raceNo={currentRace.race_no} />
+
+                    {/* 分段時間分析 */}
+                    <SectionalTimesPanel
+                      raceNo={currentRace.race_no}
+                      raceDate={selectedDate}
+                      horses={currentRace.horses}
+                      racecourse={currentRace.racecourse}
+                      raceClass={currentRace.race_class}
+                      distance={currentRace.distance}
+                      trackType={currentRace.track_type}
+                    />
+
+                    {/* 騎師 / 練馬師分析 */}
+                    <JockeyTrainerAnalysisPanel
+                      raceNo={currentRace.race_no}
+                      raceDate={selectedDate}
+                    />
+
+                    {/* 獸醫傷患紀錄 */}
+                    <VetRecordPanel
+                      raceNo={currentRace.race_no}
+                      raceDate={selectedDate}
+                      racecourse={currentRace.racecourse}
+                    />
+
+                    {/* 晨操資料 */}
+                    <TrackworkPanel
+                      raceNo={currentRace.race_no}
+                      raceDate={selectedDate}
+                      racecourse={currentRace.racecourse}
+                    />
                   </>
                 )}
               </>

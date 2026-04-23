@@ -64,6 +64,7 @@ router.get('/racecard', async (req, res) => {
       if (!races[row.race_no]) {
         races[row.race_no] = {
           race_no: row.race_no,
+          racecourse: row.racecourse,
           race_class: row.race_class,
           distance: row.distance,
           track_type: row.track_type,
