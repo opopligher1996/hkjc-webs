@@ -36,7 +36,7 @@ function DayRacesPopup({ date, highlightRaceNo, highlightHorseName, highlightHor
   function fetchDay() {
     setLoading(true);
     setError(null);
-    api.get('/sectional/day', { params: { date } })
+    api.get('/sectional/day', { params: { date }, timeout: 120000 })
       .then(res => setData(res.data))
       .catch(e => setError('載入失敗：' + e.message))
       .finally(() => setLoading(false));
@@ -60,7 +60,7 @@ function DayRacesPopup({ date, highlightRaceNo, highlightHorseName, highlightHor
         date,
         racecourse: data.racecourse,
         raceNos: data.missingRaceNos,
-      });
+      }, { timeout: 120000 });
       const d = res.data;
       setScrapeMsg(`完成：成功 ${d.scraped} 場，共處理 ${d.results.length} 場`);
       // Reload

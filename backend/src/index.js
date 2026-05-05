@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { initDb } = require('./db/init');
 const scraper = require('./scrapers/hkjc');
+const { setupJobs } = require('./jobs/scheduler');
 
 const app = express();
 app.use(cors());
@@ -845,6 +846,7 @@ const PORT = process.env.PORT || 3001;
 async function start() {
   try {
     await initDb();
+    setupJobs();
     app.listen(PORT, () => {
       console.log(`Backend running on port ${PORT}`);
     });
