@@ -314,6 +314,246 @@ app.get('/api/sectional', async (req, res) => {
   }
 });
 
+// GET /api/sectional/day?date=YYYY-MM-DD
+// Returns all races on a given date with each horse's sectional times + deltas vs standard.
+// Also returns total race count + racecourse from racecard (or localresults as fallback).
+app.get('/api/sectional/day', async (req, res) => {
+  const { date } = req.query;
+  if (!date) return res.status(400).json({ error: 'date required' });
+  try {
+    // Get authoritative race list from racecard
+    const rcResult = await pool.query(
+      `SELECT DISTINCT race_no, racecourse FROM racecard WHERE race_date = $1 ORDER BY race_no`,
+      [date]
+    );
+    let allRaceNos = rcResult.rows.map(r => r.race_no);
+    let racecourse = rcResult.rows.length > 0 ? rcResult.rows[0].racecourse : null;
+
+    // Fallback: if racecard has no data, infer from race_sectional_times + localresults
+    if (allRaceNos.length === 0) {
+      const stResult = await pool.query(
+        `SELECT DISTINCT race_no, racecourse FROM race_sectional_times WHERE race_date = $1 ORDER BY race_no`,
+        [date]
+      );
+      if (stResult.rows.length > 0) {
+        racecourse = stResult.rows[0].racecourse || 'ST';
+        // Scrape total race count from localresults nav links
+        const totalRaces = await scraper.scrapeRaceCountFromLocalResults(date, racecourse);
+        if (totalRaces) {
+          allRaceNos = Array.from({ length: totalRaces }, (_, i) => i + 1);
+        } else {
+          // Fallback to just what we have scraped
+          allRaceNos = stResult.rows.map(r => r.race_no);
+        }
+      }
+    }
+
+    // Get scraped sectional times
+    const result = await pool.query(
+      `SELECT rst.*,
+              ct.standard_time, ct.split_start_2000, ct.split_2000_1600,
+              ct.split_1600_1200, ct.split_1200_800, ct.split_800_400, ct.split_400_finish
+       FROM race_sectional_times rst
+       LEFT JOIN course_times ct
+         ON ct.racecourse = rst.racecourse
+         AND ct.distance = rst.distance
+         AND ct.race_class = rst.race_class
+         AND ct.track_type = rst.track_type
+       WHERE rst.race_date = $1
+       ORDER BY rst.race_no ASC, rst.finish_position ASC`,
+      [date]
+    );
+
+    // Group scraped data by race_no
+    const raceMap = new Map();
+    for (const row of result.rows) {
+      const rno = row.race_no;
+      if (!raceMap.has(rno)) {
+        raceMap.set(rno, {
+          raceNo: rno,
+          racecourse: row.racecourse,
+          raceClass: row.race_class,
+          distance: row.distance,
+          trackType: row.track_type,
+          going: row.going,
+          standardTime: row.standard_time,
+          standardSplits: [
+            row.split_start_2000, row.split_2000_1600, row.split_1600_1200,
+            row.split_1200_800, row.split_800_400, row.split_400_finish
+          ].filter(v => v !== null && v !== undefined && v !== ''),
+          horses: [],
+        });
+      }
+      const race = raceMap.get(rno);
+      const segs = [row.seg1, row.seg2, row.seg3, row.seg4, row.seg5, row.seg6]
+        .map(s => (s && s !== '' ? s : null));
+      const nonNullSegs = segs.filter(Boolean);
+      const stdSplits = race.standardSplits;
+      const alignedStd = stdSplits.slice(-nonNullSegs.length);
+      const deltas = segs.map((seg, i) => {
+        if (!seg) return null;
+        const stdIdx = i - (nonNullSegs.length - alignedStd.length);
+        if (stdIdx < 0 || !alignedStd[stdIdx]) return null;
+        const diff = parseFloat(seg) - parseFloat(alignedStd[stdIdx]);
+        return isNaN(diff) ? null : parseFloat(diff.toFixed(2));
+      });
+      race.horses.push({
+        finishPosition: row.finish_position,
+        horseNo: row.horse_no,
+        horseName: row.horse_name,
+        finishTime: row.finish_time,
+        segments: segs,
+        deltas,
+      });
+    }
+
+    const scrapedRaceNos = Array.from(raceMap.keys());
+    const missingRaceNos = allRaceNos.filter(rno => !scrapedRaceNos.includes(rno));
+
+    // Attach fastest splits from race_fastest_splits table
+    const fsResult = await pool.query(
+      `SELECT race_no, fastest_splits FROM race_fastest_splits WHERE race_date = $1`,
+      [date]
+    );
+    const fsMap = new Map(fsResult.rows.map(r => [r.race_no, r.fastest_splits]));
+    for (const race of raceMap.values()) {
+      race.fastestSplits = fsMap.get(race.raceNo) || null;
+    }
+
+    res.json({
+      date,
+      racecourse,
+      totalRaces: allRaceNos.length,
+      allRaceNos,
+      scrapedRaceNos,
+      missingRaceNos,
+      races: Array.from(raceMap.values()),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/sectional/scrape-day  body: { date, racecourse, raceNos? }
+// Scrapes sectional times for all (or specified) races on a given date.
+// Uses SSE-style streaming via res.write to report progress.
+app.post('/api/sectional/scrape-day', async (req, res) => {
+  const { date, racecourse, raceNos } = req.body;
+  if (!date) return res.status(400).json({ error: 'date required' });
+
+  // Determine which races to scrape
+  let targetRaceNos = raceNos;
+  if (!targetRaceNos || targetRaceNos.length === 0) {
+    // Try racecard first
+    const rcResult = await pool.query(
+      `SELECT DISTINCT race_no FROM racecard WHERE race_date = $1 ORDER BY race_no`,
+      [date]
+    );
+    if (rcResult.rows.length > 0) {
+      targetRaceNos = rcResult.rows.map(r => r.race_no);
+    } else {
+      // Fallback: scrape total race count from localresults
+      const rc = racecourse || 'ST';
+      const totalRaces = await scraper.scrapeRaceCountFromLocalResults(date, rc);
+      if (totalRaces) {
+        targetRaceNos = Array.from({ length: totalRaces }, (_, i) => i + 1);
+      } else {
+        return res.status(400).json({ error: '無法取得場次資料，請指定 raceNos' });
+      }
+    }
+  }
+
+  // Get already-scraped races to skip (for sectional times)
+  const existResult = await pool.query(
+    `SELECT DISTINCT race_no FROM race_sectional_times WHERE race_date = $1`,
+    [date]
+  );
+  const alreadyScraped = new Set(existResult.rows.map(r => r.race_no));
+  const toScrape = targetRaceNos.filter(rno => !alreadyScraped.has(rno));
+
+  // Also identify races that have sectional data but are missing fastest splits
+  const fsResult = await pool.query(
+    `SELECT DISTINCT race_no FROM race_fastest_splits WHERE race_date = $1`,
+    [date]
+  );
+  const hasFastestSplits = new Set(fsResult.rows.map(r => r.race_no));
+  const needFastestSplits = Array.from(alreadyScraped).filter(rno => !hasFastestSplits.has(rno));
+
+  const results = [];
+
+  // Backfill fastest splits for already-scraped races missing them
+  const rc = racecourse || 'ST';
+  for (const raceNo of needFastestSplits) {
+    try {
+      await scraper.saveLocalResults(date, rc, raceNo);
+      results.push({ raceNo, success: true, saved: 0, note: 'backfilled fastest splits' });
+    } catch (e2) {
+      console.warn(`backfill saveLocalResults race ${raceNo}: ${e2.message}`);
+    }
+  }
+  for (const raceNo of toScrape) {
+    try {
+      const data = await scraper.scrapeSectionalTime(date, raceNo);
+      if (data && data.error) {
+        results.push({ raceNo, success: false, message: '分段時間未公佈' });
+      } else {
+        const saved = await scraper.saveSectionalTime(data);
+        // Also scrape fastest splits from localresults page
+        try {
+          await scraper.saveLocalResults(date, rc, raceNo);
+        } catch (e2) {
+          console.warn(`saveLocalResults race ${raceNo}: ${e2.message}`);
+        }
+        results.push({ raceNo, success: true, saved });
+      }
+    } catch (e) {
+      results.push({ raceNo, success: false, message: e.message });
+    }
+  }
+
+  res.json({
+    date,
+    scraped: results.filter(r => r.success && !r.note).length,
+    backfilled: results.filter(r => r.note === 'backfilled fastest splits').length,
+    skipped: alreadyScraped.size - needFastestSplits.length,
+    total: targetRaceNos.length,
+    results,
+  });
+});
+
+// POST /api/sectional/backfill-fastest-splits  body: { date, racecourse }
+// Backfills fastest splits from localresults for all races that have sectional data but no fastest splits.
+app.post('/api/sectional/backfill-fastest-splits', async (req, res) => {
+  const { date, racecourse } = req.body;
+  if (!date) return res.status(400).json({ error: 'date required' });
+  const rc = racecourse || 'ST';
+  try {
+    const stResult = await pool.query(
+      `SELECT DISTINCT race_no FROM race_sectional_times WHERE race_date = $1 ORDER BY race_no`,
+      [date]
+    );
+    const fsResult = await pool.query(
+      `SELECT DISTINCT race_no FROM race_fastest_splits WHERE race_date = $1`,
+      [date]
+    );
+    const hasFastestSplits = new Set(fsResult.rows.map(r => r.race_no));
+    const toBackfill = stResult.rows.map(r => r.race_no).filter(rno => !hasFastestSplits.has(rno));
+
+    const results = [];
+    for (const raceNo of toBackfill) {
+      try {
+        const splits = await scraper.saveLocalResults(date, rc, raceNo);
+        results.push({ raceNo, success: true, splits });
+      } catch (e) {
+        results.push({ raceNo, success: false, message: e.message });
+      }
+    }
+    res.json({ date, backfilled: results.filter(r => r.success).length, total: toBackfill.length, results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/sectional/horse?horseid=&limit=5
 // Returns last N races' sectional times for a horse from race_sectional_times DB.
 // horseid can be a full id like "HK_2024_K316" or a short horse code like "K316".
@@ -326,12 +566,18 @@ app.get('/api/sectional/horse', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT rst.*, ct.standard_time, ct.split_start_2000, ct.split_2000_1600,
-              ct.split_1600_1200, ct.split_1200_800, ct.split_800_400, ct.split_400_finish
+              ct.split_1600_1200, ct.split_1200_800, ct.split_800_400, ct.split_400_finish,
+              rfs.fastest_splits
        FROM race_sectional_times rst
        LEFT JOIN course_times ct
          ON ct.racecourse = rst.racecourse
          AND ct.distance = rst.distance
          AND ct.race_class = rst.race_class
+         AND ct.track_type = rst.track_type
+       LEFT JOIN race_fastest_splits rfs
+         ON rfs.race_date = rst.race_date
+         AND rfs.racecourse = rst.racecourse
+         AND rfs.race_no = rst.race_no
        WHERE rst.horse_id LIKE '%_' || $1
        ORDER BY rst.race_date DESC, rst.race_no DESC
        LIMIT $2`,
@@ -391,14 +637,22 @@ app.post('/api/sectional/scrape-horse', async (req, res) => {
     let scraped = 0;
     const errors = [];
     for (const row of raceRows.rows) {
+      const raceNo = parseInt(row.daily_race_no, 10);
+      // Scrape sectional times (Puppeteer)
       try {
-        const data = await scraper.scrapeSectionalTime(row.race_date, parseInt(row.daily_race_no, 10));
+        const data = await scraper.scrapeSectionalTime(row.race_date, raceNo);
         if (data && !data.error) {
           await scraper.saveSectionalTime(data);
           scraped++;
         }
       } catch (e) {
-        errors.push(`${row.race_date} R${row.daily_race_no}: ${e.message}`);
+        errors.push(`${row.race_date} R${raceNo} sectional: ${e.message}`);
+      }
+      // Scrape fastest splits (axios+cheerio, fast)
+      try {
+        await scraper.saveLocalResults(row.race_date, row.racecourse, raceNo);
+      } catch (e) {
+        errors.push(`${row.race_date} R${raceNo} fastest: ${e.message}`);
       }
     }
     res.json({ success: true, scraped, total: raceRows.rows.length, errors });

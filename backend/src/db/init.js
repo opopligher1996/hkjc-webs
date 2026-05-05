@@ -237,7 +237,19 @@ async function initDb() {
        )`,
       `CREATE INDEX IF NOT EXISTS idx_rst_race_date ON race_sectional_times(race_date)`,
       `CREATE INDEX IF NOT EXISTS idx_rst_horse_id ON race_sectional_times(horse_id)`,
-      `CREATE INDEX IF NOT EXISTS idx_rst_horse_no_date ON race_sectional_times(horse_no, race_date DESC)`,
+       `CREATE INDEX IF NOT EXISTS idx_rst_horse_no_date ON race_sectional_times(horse_no, race_date DESC)`,
+       // race_fastest_splits: stores fastest segment times per race scraped from localresults page
+       `CREATE TABLE IF NOT EXISTS race_fastest_splits (
+          id SERIAL PRIMARY KEY,
+          race_date DATE NOT NULL,
+          racecourse VARCHAR(10) NOT NULL,
+          race_no INTEGER NOT NULL,
+          fastest_splits JSONB NOT NULL,
+          scraped_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE (race_date, racecourse, race_no)
+        )`,
+       `CREATE INDEX IF NOT EXISTS idx_rfs_race_date ON race_fastest_splits(race_date)`,
+       `ALTER TABLE course_times ALTER COLUMN section TYPE VARCHAR(50)`,
     ];
     for (const sql of migrations) {
       await client.query(sql);

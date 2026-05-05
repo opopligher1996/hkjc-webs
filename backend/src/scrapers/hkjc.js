@@ -2259,6 +2259,78 @@ async function scrapeTrackwork(raceDate, racecourse, raceNo) {
   }
 }
 
+/**
+ * Scrape the total number of races on a given day from the localresults page nav links.
+ * Returns an integer (max RaceNo found in links), or null if unavailable.
+ */
+async function scrapeRaceCountFromLocalResults(raceDate, racecourse) {
+  try {
+    const [y, m, d] = raceDate.split('-');
+    const dateStr = `${d}/${m}/${y}`;
+    const url = `https://racing.hkjc.com/zh-hk/local/information/localresults?racedate=${encodeURIComponent(dateStr)}&Racecourse=${racecourse}&RaceNo=1`;
+    const resp = await axios.get(url, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const $ = cheerio.load(resp.data);
+    let maxRaceNo = 1;
+    $('a[href*="RaceNo="]').each((i, el) => {
+      const href = $(el).attr('href') || '';
+      const match = href.match(/RaceNo=(\d+)/);
+      if (match) maxRaceNo = Math.max(maxRaceNo, parseInt(match[1]));
+    });
+    return maxRaceNo;
+  } catch (e) {
+    console.warn(`scrapeRaceCountFromLocalResults ${raceDate}: ${e.message}`);
+    return null;
+  }
+}
+
+/**
+ * Scrape fastest segment times for a single race from the localresults page.
+ * Uses axios+cheerio (no Puppeteer needed — page is server-side rendered).
+ * Returns an array of numbers e.g. [13.85, 23.44, 24.68, 23.80, 12.28, 11.52]
+ */
+async function scrapeLocalResults(raceDate, racecourse, raceNo) {
+  // raceDate: 'YYYY-MM-DD', convert to 'DD/MM/YYYY'
+  const [y, m, d] = raceDate.split('-');
+  const dateStr = `${d}/${m}/${y}`;
+  const url = `https://racing.hkjc.com/zh-hk/local/information/localresults?racedate=${encodeURIComponent(dateStr)}&Racecourse=${racecourse}&RaceNo=${raceNo}`;
+  const resp = await axios.get(url, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+  const $ = cheerio.load(resp.data);
+
+  const splits = [];
+  // Find the row containing '分段時間'
+  $('table tbody tr').each((_, tr) => {
+    const cells = $(tr).find('td');
+    let labelFound = false;
+    cells.each((i, td) => {
+      const text = $(td).text().trim();
+      if (text.includes('分段時間')) { labelFound = true; return; }
+      if (!labelFound) return;
+      // Get only the direct text node (not the sub-split div)
+      const mainText = $(td).clone().children('div').remove().end().text().trim();
+      if (mainText) {
+        const val = parseFloat(mainText);
+        if (!isNaN(val)) splits.push(val);
+      }
+    });
+  });
+  return splits;
+}
+
+/**
+ * Scrape and save fastest splits for a race into race_fastest_splits table.
+ */
+async function saveLocalResults(raceDate, racecourse, raceNo) {
+  const splits = await scrapeLocalResults(raceDate, racecourse, raceNo);
+  if (!splits.length) return splits;
+  await pool.query(
+    `INSERT INTO race_fastest_splits (race_date, racecourse, race_no, fastest_splits)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (race_date, racecourse, race_no) DO UPDATE SET fastest_splits = $4, scraped_at = NOW()`,
+    [raceDate, racecourse, raceNo, JSON.stringify(splits)]
+  );
+  return splits;
+}
+
 module.exports = {
   scrapeJockeyList,
   scrapeJockeyPastRec,
@@ -2290,4 +2362,7 @@ module.exports = {
   saveSectionalTime,
   scrapeVetRecord,
   scrapeTrackwork,
+  scrapeLocalResults,
+  saveLocalResults,
+  scrapeRaceCountFromLocalResults,
 };
