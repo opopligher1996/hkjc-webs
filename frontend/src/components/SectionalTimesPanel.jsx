@@ -567,24 +567,143 @@ function TodaySectionalSection({ raceDate, raceNo }) {
   );
 }
 
+// ── Race Followup Stats ───────────────────────────────────────────────────────
+// For a past race row, shows how each horse in that race performed afterwards.
+function RaceFollowupRow({ date, raceNo, maxSegCount, onData }) {
+  const [followup, setFollowup] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  async function load() {
+    if (followup) { setExpanded(e => !e); return; }
+    setLoading(true);
+    try {
+      const res = await api.get('/sectional/race-followup', { params: { date, raceno: raceNo } });
+      const horses = res.data.horses || [];
+      setFollowup(horses);
+      setExpanded(true);
+      if (onData) onData({ date, raceNo, horses });
+    } catch (_) {
+      setFollowup([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Summary totals across all horses in this race
+  const totals = followup ? followup.reduce((acc, h) => {
+    acc.total += h.followup.total;
+    acc.win += h.followup.win;
+    acc.second += h.followup.second;
+    acc.third += h.followup.third;
+    acc.loss += h.followup.loss;
+    return acc;
+  }, { total: 0, win: 0, second: 0, third: 0, loss: 0 }) : null;
+
+  const colSpanMeta = 9;
+  const colSpanSegs = maxSegCount * 2;
+  const totalColSpan = colSpanMeta + 1 + colSpanSegs;
+
+  const btnStyle = { fontSize: '0.75em', padding: '1px 6px', cursor: 'pointer', background: '#e8f0ff', border: '1px solid #aac', borderRadius: 3, color: '#032169' };
+
+  return (
+    <>
+      <tr style={{ background: '#f5f8ff' }}>
+        <td colSpan={totalColSpan} style={{ padding: '3px 8px' }}>
+          <button style={btnStyle} onClick={load} disabled={loading}>
+            {loading ? '載入中...' : followup ? (expanded ? '▾ 收起同場馬匹後來表現' : '▸ 同場馬匹後來表現') : '▸ 同場馬匹後來表現'}
+          </button>
+        </td>
+      </tr>
+      {followup && expanded && (
+        <tr>
+          <td colSpan={totalColSpan} style={{ padding: '0 0 6px 24px', background: '#f0f5ff' }}>
+            <table style={{ fontSize: '0.8em', borderCollapse: 'collapse', width: '100%' }}>
+              <thead>
+                <tr style={{ background: '#dce6ff' }}>
+                  <th style={{ padding: '2px 6px', textAlign: 'center' }}>馬號</th>
+                  <th style={{ padding: '2px 6px', textAlign: 'left' }}>馬名</th>
+                  <th style={{ padding: '2px 8px', textAlign: 'center', color: '#b8860b' }}>冠</th>
+                  <th style={{ padding: '2px 8px', textAlign: 'center', color: '#666' }}>亞</th>
+                  <th style={{ padding: '2px 8px', textAlign: 'center', color: '#888' }}>季</th>
+                  <th style={{ padding: '2px 8px', textAlign: 'center', color: '#cc0000' }}>落敗</th>
+                  <th style={{ padding: '2px 8px', textAlign: 'center' }}>總出賽</th>
+                  <th style={{ padding: '2px 8px', textAlign: 'center' }}>勝率</th>
+                </tr>
+              </thead>
+              <tbody>
+                {followup.map((h, i) => {
+                  const f = h.followup;
+                  const winRate = f.total > 0 ? ((f.win / f.total) * 100).toFixed(0) + '%' : '-';
+                  const noRaces = f.total === 0;
+                  return (
+                    <tr key={i} style={{ borderTop: '1px solid #dde', background: i % 2 === 0 ? '#fff' : '#f8faff' }}>
+                      <td style={{ padding: '2px 6px', textAlign: 'center', fontWeight: 700, color: '#032169' }}>{h.horseNo}</td>
+                      <td style={{ padding: '2px 6px', whiteSpace: 'nowrap', color: noRaces ? '#bbb' : 'inherit' }}>{h.horseName}</td>
+                      <td style={{ padding: '2px 8px', textAlign: 'center', fontWeight: f.win > 0 ? 700 : 'normal', color: f.win > 0 ? '#b8860b' : '#bbb' }}>{f.win || '-'}</td>
+                      <td style={{ padding: '2px 8px', textAlign: 'center', color: f.second > 0 ? '#555' : '#bbb' }}>{f.second || '-'}</td>
+                      <td style={{ padding: '2px 8px', textAlign: 'center', color: f.third > 0 ? '#777' : '#bbb' }}>{f.third || '-'}</td>
+                      <td style={{ padding: '2px 8px', textAlign: 'center', color: f.loss > 0 ? '#cc0000' : '#bbb' }}>{f.loss || '-'}</td>
+                      <td style={{ padding: '2px 8px', textAlign: 'center', color: noRaces ? '#bbb' : '#333' }}>{f.total || '-'}</td>
+                      <td style={{ padding: '2px 8px', textAlign: 'center', color: noRaces ? '#bbb' : '#032169', fontWeight: f.win > 0 ? 600 : 'normal' }}>{winRate}</td>
+                    </tr>
+                  );
+                })}
+                {/* Per-race totals row */}
+                {totals && (
+                  <tr style={{ borderTop: '2px solid #aac', background: '#dce6ff', fontWeight: 700 }}>
+                    <td colSpan={2} style={{ padding: '3px 6px', color: '#032169' }}>本場合計</td>
+                    <td style={{ padding: '3px 8px', textAlign: 'center', color: '#b8860b' }}>{totals.win}</td>
+                    <td style={{ padding: '3px 8px', textAlign: 'center' }}>{totals.second}</td>
+                    <td style={{ padding: '3px 8px', textAlign: 'center' }}>{totals.third}</td>
+                    <td style={{ padding: '3px 8px', textAlign: 'center', color: '#cc0000' }}>{totals.loss}</td>
+                    <td style={{ padding: '3px 8px', textAlign: 'center' }}>{totals.total}</td>
+                    <td style={{ padding: '3px 8px', textAlign: 'center', color: '#032169' }}>
+                      {totals.total > 0 ? ((totals.win / totals.total) * 100).toFixed(0) + '%' : '-'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
 // ── Horse History Sectional Times ─────────────────────────────────────────────
-function HorseHistoryRow({ horse }) {
+function HorseHistoryRow({ horse, racecourse, distance, trackType }) {
   const [data, setData] = useState(null);
+  const [seasonStartRating, setSeasonStartRating] = useState(null);
   const [loading, setLoading] = useState(false);
   const [scraping, setScraping] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState(null);
-  const [popup, setPopup] = useState(null); // { date, raceNo }
+  const [popup, setPopup] = useState(null);
+  const [followupByRace, setFollowupByRace] = useState({});
+  const [venueStats, setVenueStats] = useState(null);
 
   const closePopup = useCallback(() => setPopup(null), []);
+
+  const handleFollowupData = useCallback(({ date, raceNo, horses }) => {
+    setFollowupByRace(prev => ({ ...prev, [`${date}-${raceNo}`]: horses }));
+  }, []);
 
   async function load() {
     if (data) { setExpanded(e => !e); return; }
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get('/sectional/horse', { params: { horseid: horse.horse_id, limit: 5 } });
-      setData(res.data.races || []);
+      const [raceRes, statsRes] = await Promise.all([
+        api.get('/sectional/horse', { params: { horseid: horse.horse_id, limit: 5 } }),
+        (racecourse && distance)
+          ? api.get('/sectional/horse-venue-stats', { params: { horseid: horse.horse_id, racecourse, distance, tracktype: trackType } })
+          : Promise.resolve(null),
+      ]);
+      setData(raceRes.data.races || []);
+      if (raceRes.data.seasonStartRating != null) setSeasonStartRating(raceRes.data.seasonStartRating);
+      if (statsRes) setVenueStats(statsRes.data);
       setExpanded(true);
     } catch (e) {
       setError('載入失敗');
@@ -598,9 +717,15 @@ function HorseHistoryRow({ horse }) {
     setError(null);
     try {
       await api.post('/sectional/scrape-horse', { horsename: horse.horse_name, limit: 5 }, { timeout: 120000 });
-      // Reload after scraping
-      const res = await api.get('/sectional/horse', { params: { horseid: horse.horse_id, limit: 5 } });
-      setData(res.data.races || []);
+      const [raceRes, statsRes] = await Promise.all([
+        api.get('/sectional/horse', { params: { horseid: horse.horse_id, limit: 5 } }),
+        (racecourse && distance)
+          ? api.get('/sectional/horse-venue-stats', { params: { horseid: horse.horse_id, racecourse, distance, tracktype: trackType } })
+          : Promise.resolve(null),
+      ]);
+      setData(raceRes.data.races || []);
+      if (raceRes.data.seasonStartRating != null) setSeasonStartRating(raceRes.data.seasonStartRating);
+      if (statsRes) setVenueStats(statsRes.data);
       setExpanded(true);
     } catch (e) {
       setError('爬取失敗：' + e.message);
@@ -620,9 +745,26 @@ function HorseHistoryRow({ horse }) {
           onClose={closePopup}
         />
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontWeight: 600, minWidth: 30 }}>{horse.horse_no}</span>
-        <span style={{ minWidth: 120 }}>{horse.horse_name}</span>
+        <span style={{ minWidth: 120, fontWeight: 600 }}>{horse.horse_name}</span>
+        {horse.rating != null && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.82em' }}>
+            <span style={{ background: '#032169', color: '#fff', borderRadius: 3, padding: '1px 6px', fontWeight: 700 }}>
+              現評 {horse.rating}
+            </span>
+            {seasonStartRating != null && (
+              <span style={{ background: '#e8f0ff', color: '#032169', borderRadius: 3, padding: '1px 6px' }}>
+                季初 {seasonStartRating}
+              </span>
+            )}
+            {horse.rating_change != null && parseInt(horse.rating_change, 10) !== 0 && (
+              <span style={{ color: parseInt(horse.rating_change, 10) > 0 ? '#007700' : '#cc0000', fontWeight: 600 }}>
+                ({parseInt(horse.rating_change, 10) > 0 ? '+' : ''}{horse.rating_change})
+              </span>
+            )}
+          </span>
+        )}
         <button className="btn btn-secondary" onClick={load} disabled={loading || scraping} style={{ fontSize: '0.78em', padding: '2px 8px' }}>
           {loading ? '...' : data ? (expanded ? '收起' : '展開') : '載入往績分段'}
         </button>
@@ -662,9 +804,12 @@ function HorseHistoryRow({ horse }) {
               <thead>
                 <tr style={{ background: '#f5f5f5' }}>
                   <th style={{ padding: '2px 6px', textAlign: 'left' }}>日期</th>
+                  <th style={{ padding: '2px 4px', textAlign: 'center', color: '#666' }}>場次</th>
                   <th style={{ padding: '2px 6px' }}>馬場</th>
+                  <th style={{ padding: '2px 6px' }}>草/沙</th>
                   <th style={{ padding: '2px 6px' }}>場地</th>
                   <th style={{ padding: '2px 6px' }}>途程</th>
+                  <th style={{ padding: '2px 6px' }}>評分</th>
                   <th style={{ padding: '2px 6px' }}>名次</th>
                   <th style={{ padding: '2px 6px' }}>完成</th>
                   <th style={{ padding: '2px 6px', borderRight: '1px solid #eee' }}></th>
@@ -676,6 +821,32 @@ function HorseHistoryRow({ horse }) {
                 </tr>
               </thead>
               <tbody>
+                {/* Venue stats summary row */}
+                {venueStats && parseInt(venueStats.total) > 0 && (() => {
+                  const total = parseInt(venueStats.total);
+                  const win = parseInt(venueStats.win);
+                  const second = parseInt(venueStats.second);
+                  const third = parseInt(venueStats.third);
+                  const top3 = parseInt(venueStats.top3);
+                  const trackLabel = trackType === 'TURF' ? '草' : trackType === 'AWT' ? '沙' : trackType || '';
+                  const winRate = total > 0 ? ((win / total) * 100).toFixed(0) + '%' : '-';
+                  const top3Rate = total > 0 ? ((top3 / total) * 100).toFixed(0) + '%' : '-';
+                  const totalColSpan = 9 + 1 + maxSegCount * 2;
+                  return (
+                    <tr style={{ background: '#fff8e1', borderBottom: '2px solid #f0c040' }}>
+                      <td colSpan={totalColSpan} style={{ padding: '4px 10px', fontSize: '0.85em', color: '#5a3e00' }}>
+                        <span style={{ fontWeight: 700, marginRight: 8, color: '#032169' }}>
+                          {racecourse}{trackLabel && ` · ${trackLabel}`}{distance && ` · ${distance}m`} 全記錄：
+                        </span>
+                        出賽 <b>{total}</b> 場 ·{' '}
+                        <span style={{ color: '#b8860b', fontWeight: 700 }}>冠軍 {win}</span> ·{' '}
+                        <span>亞季 {second + third}</span> ·{' '}
+                        <span style={{ color: '#1a6b1a', fontWeight: 600 }}>三甲 {top3}（{top3Rate}）</span> ·{' '}
+                        勝率 {winRate}
+                      </td>
+                    </tr>
+                  );
+                })()}
                 {data.map((race, idx) => {
                   const segs = [race.seg1, race.seg2, race.seg3, race.seg4, race.seg5, race.seg6];
                   const segCount = segs.filter(Boolean).length;
@@ -724,9 +895,14 @@ function HorseHistoryRow({ horse }) {
                       <tr style={{ borderTop: idx === 0 ? '1px solid #ddd' : 'none', cursor: 'pointer' }}
                           title="點擊查看當日所有賽事分段時間" onClick={clickHandler}>
                         <td rowSpan={metaRowSpan} style={{ padding: '2px 6px', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>{dateStr}</td>
+                        <td rowSpan={metaRowSpan} style={{ padding: '2px 4px', verticalAlign: 'middle', textAlign: 'center', color: '#555', fontSize: '0.85em', fontWeight: 600 }}>{race.career_race_no || '-'}</td>
                         <td rowSpan={metaRowSpan} style={{ padding: '2px 6px', verticalAlign: 'middle' }}>{race.racecourse || '-'}</td>
+                        <td rowSpan={metaRowSpan} style={{ padding: '2px 4px', verticalAlign: 'middle', textAlign: 'center', fontWeight: 600, color: race.track_type === 'TURF' ? '#1a6b1a' : race.track_type === 'AWT' ? '#8b4513' : '#555', fontSize: '0.85em' }}>
+                          {race.track_type === 'TURF' ? '草' : race.track_type === 'AWT' ? '沙' : race.track_type || '-'}
+                        </td>
                         <td rowSpan={metaRowSpan} style={{ padding: '2px 6px', verticalAlign: 'middle' }}>{race.going || '-'}</td>
                         <td rowSpan={metaRowSpan} style={{ padding: '2px 6px', verticalAlign: 'middle' }}>{race.distance ? race.distance + 'm' : '-'}</td>
+                        <td rowSpan={metaRowSpan} style={{ padding: '2px 6px', verticalAlign: 'middle', textAlign: 'center', color: '#555', fontSize: '0.9em' }}>{race.race_rating != null ? race.race_rating : '-'}</td>
                         <td rowSpan={metaRowSpan} style={{ padding: '2px 6px', fontWeight: 700, verticalAlign: 'middle' }}>{race.finish_position || '-'}</td>
                         <td rowSpan={metaRowSpan} style={{ padding: '2px 6px', verticalAlign: 'middle' }}>{race.finish_time || '-'}</td>
                         <td style={labelStyle}>時間</td>
@@ -824,6 +1000,12 @@ function HorseHistoryRow({ horse }) {
                         })}
                       </tr>
                       {sepRow}
+                      {/* Same-race horses followup stats */}
+                      {(() => {
+                        const d = race.race_date ? new Date(race.race_date).toISOString().slice(0, 10) : null;
+                        if (!d) return null;
+                        return <RaceFollowupRow key={`followup-${idx}`} date={d} raceNo={race.race_no} maxSegCount={maxSegCount} onData={handleFollowupData} />;
+                      })()}
                     </React.Fragment>
                   );
                 })}
@@ -832,6 +1014,89 @@ function HorseHistoryRow({ horse }) {
             <div style={{ fontSize: '0.75em', color: '#666', marginTop: 3 }}>
               差值: 負數(綠色)=快，正數(紅色)=慢 · ★=該場最快 · 點擊任意行可查看當日所有賽事分段時間對比
             </div>
+
+            {/* Cross-race followup summary — shown once any followup data is loaded */}
+            {Object.keys(followupByRace).length > 0 && (() => {
+              // Aggregate all horses across all loaded races, de-dup by horseName
+              const horseMap = {};
+              for (const horses of Object.values(followupByRace)) {
+                for (const h of horses) {
+                  if (!h.horseName) continue;
+                  if (!horseMap[h.horseName]) {
+                    horseMap[h.horseName] = { horseName: h.horseName, win: 0, second: 0, third: 0, loss: 0, total: 0 };
+                  }
+                  horseMap[h.horseName].win += h.followup.win;
+                  horseMap[h.horseName].second += h.followup.second;
+                  horseMap[h.horseName].third += h.followup.third;
+                  horseMap[h.horseName].loss += h.followup.loss;
+                  horseMap[h.horseName].total += h.followup.total;
+                }
+              }
+              const sorted = Object.values(horseMap).sort((a, b) => b.win - a.win || b.total - a.total);
+              const grand = sorted.reduce((acc, h) => {
+                acc.win += h.win; acc.second += h.second;
+                acc.third += h.third; acc.loss += h.loss; acc.total += h.total;
+                return acc;
+              }, { win: 0, second: 0, third: 0, loss: 0, total: 0 });
+
+              return (
+                <div style={{ marginTop: 12, padding: '10px 12px', background: '#f0f5ff', borderRadius: 6, border: '1px solid #c5d8ff' }}>
+                  <div style={{ fontWeight: 700, color: '#032169', marginBottom: 6, fontSize: '0.88em' }}>
+                    跨場次同場馬匹後來成績總數分析（已載入 {Object.keys(followupByRace).length} 場）
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ fontSize: '0.8em', borderCollapse: 'collapse', minWidth: 400 }}>
+                      <thead>
+                        <tr style={{ background: '#dce6ff' }}>
+                          <th style={{ padding: '3px 8px', textAlign: 'left' }}>馬名</th>
+                          <th style={{ padding: '3px 8px', textAlign: 'center', color: '#b8860b' }}>冠</th>
+                          <th style={{ padding: '3px 8px', textAlign: 'center', color: '#555' }}>亞</th>
+                          <th style={{ padding: '3px 8px', textAlign: 'center', color: '#777' }}>季</th>
+                          <th style={{ padding: '3px 8px', textAlign: 'center', color: '#cc0000' }}>落敗</th>
+                          <th style={{ padding: '3px 8px', textAlign: 'center' }}>總出賽</th>
+                          <th style={{ padding: '3px 8px', textAlign: 'center' }}>勝率</th>
+                          <th style={{ padding: '3px 8px', textAlign: 'center' }}>入三甲率</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sorted.map((h, i) => {
+                          const winRate = h.total > 0 ? ((h.win / h.total) * 100).toFixed(0) + '%' : '-';
+                          const top3Rate = h.total > 0 ? (((h.win + h.second + h.third) / h.total) * 100).toFixed(0) + '%' : '-';
+                          const noRaces = h.total === 0;
+                          return (
+                            <tr key={i} style={{ borderTop: '1px solid #dde', background: i % 2 === 0 ? '#fff' : '#f8faff' }}>
+                              <td style={{ padding: '2px 8px', whiteSpace: 'nowrap', color: noRaces ? '#bbb' : 'inherit' }}>{h.horseName}</td>
+                              <td style={{ padding: '2px 8px', textAlign: 'center', fontWeight: h.win > 0 ? 700 : 'normal', color: h.win > 0 ? '#b8860b' : '#bbb' }}>{h.win || '-'}</td>
+                              <td style={{ padding: '2px 8px', textAlign: 'center', color: h.second > 0 ? '#555' : '#bbb' }}>{h.second || '-'}</td>
+                              <td style={{ padding: '2px 8px', textAlign: 'center', color: h.third > 0 ? '#777' : '#bbb' }}>{h.third || '-'}</td>
+                              <td style={{ padding: '2px 8px', textAlign: 'center', color: h.loss > 0 ? '#cc0000' : '#bbb' }}>{h.loss || '-'}</td>
+                              <td style={{ padding: '2px 8px', textAlign: 'center', color: noRaces ? '#bbb' : '#333' }}>{h.total || '-'}</td>
+                              <td style={{ padding: '2px 8px', textAlign: 'center', fontWeight: h.win > 0 ? 600 : 'normal', color: noRaces ? '#bbb' : '#032169' }}>{winRate}</td>
+                              <td style={{ padding: '2px 8px', textAlign: 'center', color: noRaces ? '#bbb' : '#444' }}>{top3Rate}</td>
+                            </tr>
+                          );
+                        })}
+                        {/* Grand total row */}
+                        <tr style={{ borderTop: '2px solid #aac', background: '#dce6ff', fontWeight: 700 }}>
+                          <td style={{ padding: '3px 8px', color: '#032169' }}>總計</td>
+                          <td style={{ padding: '3px 8px', textAlign: 'center', color: '#b8860b' }}>{grand.win}</td>
+                          <td style={{ padding: '3px 8px', textAlign: 'center' }}>{grand.second}</td>
+                          <td style={{ padding: '3px 8px', textAlign: 'center' }}>{grand.third}</td>
+                          <td style={{ padding: '3px 8px', textAlign: 'center', color: '#cc0000' }}>{grand.loss}</td>
+                          <td style={{ padding: '3px 8px', textAlign: 'center' }}>{grand.total}</td>
+                          <td style={{ padding: '3px 8px', textAlign: 'center', color: '#032169' }}>
+                            {grand.total > 0 ? ((grand.win / grand.total) * 100).toFixed(0) + '%' : '-'}
+                          </td>
+                          <td style={{ padding: '3px 8px', textAlign: 'center' }}>
+                            {grand.total > 0 ? (((grand.win + grand.second + grand.third) / grand.total) * 100).toFixed(0) + '%' : '-'}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
@@ -878,7 +1143,7 @@ export default function SectionalTimesPanel({ raceNo, raceDate, horses, racecour
                 馬匹往績分段時間（對上5場）
               </h5>
               {horses.filter(h => h.horse_id).map(horse => (
-                <HorseHistoryRow key={horse.horse_no || horse.horse_id} horse={horse} />
+                <HorseHistoryRow key={horse.horse_no || horse.horse_id} horse={horse} racecourse={racecourse} distance={distance} trackType={trackType} />
               ))}
               {horses.every(h => !h.horse_id) && (
                 <div className="empty-state">暫無馬匹資料</div>

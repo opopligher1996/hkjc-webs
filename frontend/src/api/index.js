@@ -56,4 +56,7 @@ export const getCourseRecords = (params = {}) =>
 export const scrapeHorses = () =>
   api.post('/scrape/horses').then(r => r.data);
 
+export const getTrackworkByHorse = (name, limit = 5) =>
+  api.get('/trackwork/horse', { params: { name, limit }, timeout: 120000 }).then(r => r.data);
+
 export default api;

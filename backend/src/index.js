@@ -565,10 +565,19 @@ app.get('/api/sectional/horse', async (req, res) => {
   // Extract short code: "HK_2024_K316" → "K316", "K316" → "K316"
   const shortCode = horseid.includes('_') ? horseid.split('_').pop() : horseid;
   try {
+    // First get the horse_name from race_sectional_times to use for joining race_records (which lacks horse_id)
+    const nameRow = await pool.query(
+      `SELECT horse_name FROM race_sectional_times WHERE horse_id LIKE '%_' || $1 LIMIT 1`,
+      [shortCode]
+    );
+    const horseName = nameRow.rows.length > 0 ? nameRow.rows[0].horse_name : null;
+
     const result = await pool.query(
       `SELECT rst.*, ct.standard_time, ct.split_start_2000, ct.split_2000_1600,
               ct.split_1600_1200, ct.split_1200_800, ct.split_800_400, ct.split_400_finish,
-              rfs.fastest_splits
+              rfs.fastest_splits,
+              rr.race_no AS career_race_no,
+              rr.rating AS race_rating
        FROM race_sectional_times rst
        LEFT JOIN course_times ct
          ON ct.racecourse = rst.racecourse
@@ -579,16 +588,73 @@ app.get('/api/sectional/horse', async (req, res) => {
          ON rfs.race_date = rst.race_date
          AND rfs.racecourse = rst.racecourse
          AND rfs.race_no = rst.race_no
+       LEFT JOIN (
+         SELECT rr2.race_date, rr2.racecourse, rr2.race_no, rr2.rating,
+                (rr2.race_no - mn.min_race_no + 1) AS daily_race_no
+         FROM race_records rr2
+         JOIN (
+           SELECT race_date, racecourse, MIN(race_no) AS min_race_no
+           FROM race_records
+           GROUP BY race_date, racecourse
+         ) mn ON mn.race_date = rr2.race_date AND mn.racecourse = rr2.racecourse
+         WHERE rr2.horse_name = $3
+       ) rr
+         ON rr.race_date = rst.race_date
+         AND rr.racecourse = rst.racecourse
+         AND rr.daily_race_no = rst.race_no
        WHERE rst.horse_id LIKE '%_' || $1
        ORDER BY rst.race_date DESC, rst.race_no DESC
        LIMIT $2`,
-      [shortCode, parseInt(limit, 10)]
+      [shortCode, parseInt(limit, 10), horseName]
     );
-    res.json({ horseid, races: result.rows });
+    // Also fetch season-start rating: first race of current season (season starts ~Sep 1)
+    const now = new Date();
+    const seasonYear = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+    const seasonStart = `${seasonYear}-09-01`;
+    const seasonRow = await pool.query(
+      `SELECT rating FROM race_records
+       WHERE horse_name = $1 AND race_date >= $2
+       ORDER BY race_date ASC, race_no ASC LIMIT 1`,
+      [horseName, seasonStart]
+    );
+    const seasonStartRating = seasonRow.rows.length > 0 ? seasonRow.rows[0].rating : null;
+    res.json({ horseid, races: result.rows, seasonStartRating });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
+// GET /api/sectional/horse-venue-stats?horseid=&racecourse=&distance=&tracktype=
+// Returns all-time stats for a horse at a specific venue+distance combination.
+app.get('/api/sectional/horse-venue-stats', async (req, res) => {
+  const { horseid, racecourse, distance, tracktype } = req.query;
+  if (!horseid) return res.status(400).json({ error: 'horseid required' });
+  const shortCode = horseid.includes('_') ? horseid.split('_').pop() : horseid;
+  try {
+    const conditions = [`horse_id LIKE '%_' || $1`];
+    const params = [shortCode];
+    if (racecourse) { params.push(racecourse); conditions.push(`racecourse = $${params.length}`); }
+    if (distance)   { params.push(parseInt(distance, 10)); conditions.push(`distance = $${params.length}`); }
+    if (tracktype)  { params.push(tracktype); conditions.push(`track_type = $${params.length}`); }
+    const result = await pool.query(
+      `SELECT
+         COUNT(*) AS total,
+         SUM(CASE WHEN finish_position = 1 THEN 1 ELSE 0 END) AS win,
+         SUM(CASE WHEN finish_position = 2 THEN 1 ELSE 0 END) AS second,
+         SUM(CASE WHEN finish_position = 3 THEN 1 ELSE 0 END) AS third,
+         SUM(CASE WHEN finish_position <= 3 THEN 1 ELSE 0 END) AS top3,
+         MIN(race_date) AS first_race,
+         MAX(race_date) AS last_race
+       FROM race_records
+       WHERE ${conditions.join(' AND ')}`,
+      params
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // POST /api/sectional/scrape  body: { date, raceno }
 // Triggers live scrape of sectional times for a race and saves to DB
@@ -832,6 +898,135 @@ app.get('/api/trackwork', async (req, res) => {
   try {
     const data = await scraper.scrapeTrackwork(date, racecourse, parseInt(raceno, 10));
     res.json({ date, racecourse, raceNo: parseInt(raceno, 10), ...(data || { declared: [], reserves: [] }) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/sectional/race-followup?date=YYYY-MM-DD&raceno=N
+// Returns post-race performance stats for all horses that ran in the specified race.
+// For each horse, counts wins/2nds/3rds/losses in race_records after the given date.
+app.get('/api/sectional/race-followup', async (req, res) => {
+  const { date, raceno } = req.query;
+  if (!date || !raceno) return res.status(400).json({ error: 'date and raceno required' });
+  const raceNo = parseInt(raceno, 10);
+  try {
+    // Step 1: get all horses from this race via racecard (preferred) or race_sectional_times
+    let horses = [];
+    const rcResult = await pool.query(
+      `SELECT horse_no, horse_name, horse_id FROM racecard
+       WHERE race_date = $1 AND race_no = $2 ORDER BY horse_no`,
+      [date, raceNo]
+    );
+    if (rcResult.rows.length > 0) {
+      horses = rcResult.rows.map(r => ({
+        horseNo: r.horse_no,
+        horseName: r.horse_name,
+        horseId: r.horse_id,
+      }));
+    } else {
+      // Fallback: race_sectional_times
+      const stResult = await pool.query(
+        `SELECT horse_no, horse_name, horse_id FROM race_sectional_times
+         WHERE race_date = $1 AND race_no = $2 ORDER BY finish_position`,
+        [date, raceNo]
+      );
+      horses = stResult.rows.map(r => ({
+        horseNo: r.horse_no,
+        horseName: r.horse_name,
+        horseId: r.horse_id,
+      }));
+    }
+
+    if (horses.length === 0) {
+      return res.json({ date, raceNo, horses: [] });
+    }
+
+    // Step 2: for each horse, count post-race results from race_records using horse_name
+    const horseNames = horses.map(h => h.horseName).filter(Boolean);
+    if (horseNames.length === 0) return res.json({ date, raceNo, horses: [] });
+
+    const placeholders = horseNames.map((_, i) => `$${i + 2}`).join(',');
+    const statsResult = await pool.query(
+      `SELECT horse_name,
+              COUNT(*) AS total,
+              COUNT(*) FILTER (WHERE finish_position = 1) AS win,
+              COUNT(*) FILTER (WHERE finish_position = 2) AS second,
+              COUNT(*) FILTER (WHERE finish_position = 3) AS third,
+              COUNT(*) FILTER (WHERE finish_position > 3) AS loss
+       FROM race_records
+       WHERE race_date > $1 AND horse_name IN (${placeholders})
+       GROUP BY horse_name`,
+      [date, ...horseNames]
+    );
+
+    const statsMap = {};
+    for (const row of statsResult.rows) {
+      statsMap[row.horse_name] = {
+        total: parseInt(row.total),
+        win: parseInt(row.win),
+        second: parseInt(row.second),
+        third: parseInt(row.third),
+        loss: parseInt(row.loss),
+      };
+    }
+
+    const result = horses.map(h => ({
+      ...h,
+      followup: statsMap[h.horseName] || { total: 0, win: 0, second: 0, third: 0, loss: 0 },
+    }));
+
+    res.json({ date, raceNo, horses: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// GET /api/trackwork/horse?name=馬名&limit=5
+// Finds the horse's upcoming / recent races from racecard, then scrapes trackwork for each.
+app.get('/api/trackwork/horse', async (req, res) => {
+  const { name, limit = 5 } = req.query;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  const lim = Math.min(parseInt(limit, 10) || 5, 10);
+  try {
+    // Find races for this horse from racecard (most recent first)
+    const rcResult = await pool.query(
+      `SELECT DISTINCT race_date, racecourse, race_no
+       FROM racecard
+       WHERE horse_name = $1
+       ORDER BY race_date DESC, race_no ASC
+       LIMIT $2`,
+      [name, lim]
+    );
+    if (rcResult.rows.length === 0) {
+      return res.json({ name, races: [], message: '未找到該馬匹的排位記錄' });
+    }
+    const races = [];
+    for (const row of rcResult.rows) {
+      const dateStr = row.race_date instanceof Date
+        ? row.race_date.toISOString().slice(0, 10)
+        : String(row.race_date).slice(0, 10);
+      try {
+        const data = await scraper.scrapeTrackwork(dateStr, row.racecourse, row.race_no);
+        const allHorses = [...(data.declared || []), ...(data.reserves || [])];
+        const horseEntry = allHorses.find(h =>
+          h.horseName && h.horseName.includes(name)
+        );
+        races.push({
+          date: dateStr,
+          racecourse: row.racecourse,
+          raceNo: row.race_no,
+          found: !!horseEntry,
+          trackwork: horseEntry || null,
+          declared: data.declared || [],
+          reserves: data.reserves || [],
+        });
+      } catch (e) {
+        races.push({ date: dateStr, racecourse: row.racecourse, raceNo: row.race_no, found: false, error: e.message });
+      }
+    }
+    res.json({ name, races });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
