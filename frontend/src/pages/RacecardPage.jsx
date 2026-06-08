@@ -6,7 +6,6 @@ import SpeedGuidePanel from '../components/SpeedGuidePanel';
 import SectionalTimesPanel from '../components/SectionalTimesPanel';
 import JockeyTrainerAnalysisPanel from '../components/JockeyTrainerAnalysisPanel';
 import VetRecordPanel from '../components/VetRecordPanel';
-import TrackworkPanel from '../components/TrackworkPanel';
 
 const BASE_URL = '/api';
 
@@ -284,12 +283,6 @@ export default function RacecardPage() {
                       racecourse={currentRace.racecourse}
                     />
 
-                    {/* 晨操資料 */}
-                    <TrackworkPanel
-                      raceNo={currentRace.race_no}
-                      raceDate={selectedDate}
-                      racecourse={currentRace.racecourse}
-                    />
                   </>
                 )}
               </>

@@ -890,17 +890,8 @@ app.get('/api/vetrecord', async (req, res) => {
   }
 });
 
-// ── Trackwork ─────────────────────────────────────────────────────────────────
-// GET /api/trackwork?date=YYYY-MM-DD&racecourse=ST&raceno=N
-app.get('/api/trackwork', async (req, res) => {
-  const { date, racecourse, raceno } = req.query;
-  if (!date || !racecourse || !raceno) return res.status(400).json({ error: 'date, racecourse and raceno required' });
-  try {
-    const data = await scraper.scrapeTrackwork(date, racecourse, parseInt(raceno, 10));
-    res.json({ date, racecourse, raceNo: parseInt(raceno, 10), ...(data || { declared: [], reserves: [] }) });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
 // GET /api/sectional/race-followup?date=YYYY-MM-DD&raceno=N
@@ -977,56 +968,6 @@ app.get('/api/sectional/race-followup', async (req, res) => {
     }));
 
     res.json({ date, raceNo, horses: result });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-// GET /api/trackwork/horse?name=馬名&limit=5
-// Finds the horse's upcoming / recent races from racecard, then scrapes trackwork for each.
-app.get('/api/trackwork/horse', async (req, res) => {
-  const { name, limit = 5 } = req.query;
-  if (!name) return res.status(400).json({ error: 'name required' });
-  const lim = Math.min(parseInt(limit, 10) || 5, 10);
-  try {
-    // Find races for this horse from racecard (most recent first)
-    const rcResult = await pool.query(
-      `SELECT DISTINCT race_date, racecourse, race_no
-       FROM racecard
-       WHERE horse_name = $1
-       ORDER BY race_date DESC, race_no ASC
-       LIMIT $2`,
-      [name, lim]
-    );
-    if (rcResult.rows.length === 0) {
-      return res.json({ name, races: [], message: '未找到該馬匹的排位記錄' });
-    }
-    const races = [];
-    for (const row of rcResult.rows) {
-      const dateStr = row.race_date instanceof Date
-        ? row.race_date.toISOString().slice(0, 10)
-        : String(row.race_date).slice(0, 10);
-      try {
-        const data = await scraper.scrapeTrackwork(dateStr, row.racecourse, row.race_no);
-        const allHorses = [...(data.declared || []), ...(data.reserves || [])];
-        const horseEntry = allHorses.find(h =>
-          h.horseName && h.horseName.includes(name)
-        );
-        races.push({
-          date: dateStr,
-          racecourse: row.racecourse,
-          raceNo: row.race_no,
-          found: !!horseEntry,
-          trackwork: horseEntry || null,
-          declared: data.declared || [],
-          reserves: data.reserves || [],
-        });
-      } catch (e) {
-        races.push({ date: dateStr, racecourse: row.racecourse, raceNo: row.race_no, found: false, error: e.message });
-      }
-    }
-    res.json({ name, races });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
