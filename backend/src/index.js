@@ -890,6 +890,59 @@ app.get('/api/vetrecord', async (req, res) => {
   }
 });
 
+// ── AI Data ───────────────────────────────────────────────────────────────────
+// GET /api/ai/gear-changes?date=YYYY-MM-DD
+// Returns all horses on that race date with their current gear vs previous race gear.
+app.get('/api/ai/gear-changes', async (req, res) => {
+  try {
+    let { date } = req.query;
+    if (!date) {
+      const today = new Date().toISOString().slice(0, 10);
+      const next = await pool.query(
+        `SELECT TO_CHAR(race_date, 'YYYY-MM-DD') AS race_date
+         FROM fixtures WHERE race_date >= $1 ORDER BY race_date ASC LIMIT 1`,
+        [today]
+      );
+      date = next.rows.length > 0 ? next.rows[0].race_date : today;
+    }
+    const result = await pool.query(
+      `SELECT
+         rc.race_no,
+         rc.horse_no,
+         rc.horse_name,
+         rc.gear       AS current_gear,
+         prev.gear     AS prev_gear,
+         TO_CHAR(prev.race_date, 'YYYY-MM-DD') AS prev_race_date,
+         prev.racecourse AS prev_racecourse
+       FROM racecard rc
+       LEFT JOIN LATERAL (
+         SELECT gear, race_date, racecourse
+         FROM race_records
+         WHERE horse_name = rc.horse_name
+           AND race_date < rc.race_date
+         ORDER BY race_date DESC
+         LIMIT 1
+       ) prev ON true
+       WHERE rc.race_date = $1
+       ORDER BY rc.race_no, rc.horse_no`,
+      [date]
+    );
+    const horses = result.rows.map(r => ({
+      race_no:         r.race_no,
+      horse_no:        r.horse_no,
+      horse_name:      r.horse_name,
+      current_gear:    r.current_gear || '',
+      prev_gear:       r.prev_gear || '',
+      prev_race_date:  r.prev_race_date || null,
+      prev_racecourse: r.prev_racecourse || null,
+      changed: (r.current_gear || '') !== (r.prev_gear || ''),
+    }));
+    res.json({ date, horses });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
