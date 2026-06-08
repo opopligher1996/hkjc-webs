@@ -6,6 +6,7 @@ import DrawPage from './pages/DrawPage';
 import RacecardPage from './pages/RacecardPage';
 import HorsePage from './pages/HorsePage';
 import CourseTimePage from './pages/CourseTimePage';
+import AiDataPage from './pages/AiDataPage';
 
 export default function App() {
   return (
@@ -20,7 +21,7 @@ export default function App() {
             <li><NavLink to="/racecard">排位表</NavLink></li>
             <li><NavLink to="/horses">馬匹資料</NavLink></li>
             <li><NavLink to="/coursetime">跑道標準時間</NavLink></li>
-
+            <li><NavLink to="/ai-data">AI數據</NavLink></li>
           </ul>
         </nav>
 
@@ -32,7 +33,7 @@ export default function App() {
             <Route path="/racecard" element={<RacecardPage />} />
             <Route path="/horses" element={<HorsePage />} />
             <Route path="/coursetime" element={<CourseTimePage />} />
-
+            <Route path="/ai-data" element={<AiDataPage />} />
           </Routes>
         </main>
 
