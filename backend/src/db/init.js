@@ -172,6 +172,7 @@ async function initDb() {
       `ALTER TABLE race_records ADD COLUMN IF NOT EXISTS running_positions VARCHAR(100)`,
       `ALTER TABLE race_records ADD COLUMN IF NOT EXISTS finish_time VARCHAR(20)`,
       `ALTER TABLE race_records ADD COLUMN IF NOT EXISTS horse_id VARCHAR(20)`,
+      `ALTER TABLE race_records ADD COLUMN IF NOT EXISTS win_odds NUMERIC(6,1)`,
       // racecard new columns
       `ALTER TABLE racecard ADD COLUMN IF NOT EXISTS racecourse VARCHAR(10)`,
       `ALTER TABLE racecard ADD COLUMN IF NOT EXISTS horse_id VARCHAR(20)`,
@@ -250,7 +251,130 @@ async function initDb() {
         )`,
        `CREATE INDEX IF NOT EXISTS idx_rfs_race_date ON race_fastest_splits(race_date)`,
        `ALTER TABLE course_times ALTER COLUMN section TYPE VARCHAR(50)`,
-    ];
+       // horse_workouts: morning workout data per horse per race
+       `CREATE TABLE IF NOT EXISTS horse_workouts (
+          id SERIAL PRIMARY KEY,
+          horse_name VARCHAR(100) NOT NULL,
+          race_date DATE NOT NULL,
+          racecourse VARCHAR(10),
+          race_no INTEGER,
+          daily_race_no INTEGER,
+          finish_position INTEGER,
+          gallop TEXT,
+          trotting TEXT,
+          swimming TEXT,
+          treadmill TEXT,
+          aqua_walker TEXT,
+          barrier_trial TEXT,
+          spelling TEXT,
+          scraped_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(horse_name, race_date, race_no)
+        )`,
+       `CREATE INDEX IF NOT EXISTS idx_hw_horse_name ON horse_workouts(horse_name)`,
+       // horse_trials: per-horse barrier trial history scraped from trackworkresult page
+       `CREATE TABLE IF NOT EXISTS horse_trials (
+          id SERIAL PRIMARY KEY,
+          horse_id   VARCHAR(20) NOT NULL,
+          horse_name VARCHAR(100),
+          trial_date DATE NOT NULL,
+          venue      VARCHAR(50),
+          details    TEXT,
+          scraped_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(horse_id, trial_date)
+        )`,
+       `CREATE INDEX IF NOT EXISTS idx_ht_horse_id   ON horse_trials(horse_id)`,
+       `CREATE INDEX IF NOT EXISTS idx_ht_trial_date ON horse_trials(trial_date)`,
+       `CREATE INDEX IF NOT EXISTS idx_ht_horse_name ON horse_trials(horse_name)`,
+       // horse_workout_log: full daily workout history per horse scraped from trackworkresult page
+       // One row per (horse_id, log_date, workout_type, venue) entry on the page.
+       `CREATE TABLE IF NOT EXISTS horse_workout_log (
+          id           SERIAL PRIMARY KEY,
+          horse_id     VARCHAR(20) NOT NULL,
+          horse_name   VARCHAR(100),
+          log_date     DATE NOT NULL,
+          workout_type VARCHAR(50),
+          venue        VARCHAR(100),
+          details      TEXT,
+          scraped_at   TIMESTAMP DEFAULT NOW(),
+          UNIQUE(horse_id, log_date, workout_type, venue)
+        )`,
+       `CREATE INDEX IF NOT EXISTS idx_hwl_horse_id  ON horse_workout_log(horse_id)`,
+       `CREATE INDEX IF NOT EXISTS idx_hwl_log_date  ON horse_workout_log(log_date)`,
+       // horse_race_history: full multi-season career results scraped from horse profile page
+       // Source: /zh-hk/local/information/horse?horseid=... (shows last ~3 seasons)
+       `CREATE TABLE IF NOT EXISTS horse_race_history (
+          id              SERIAL PRIMARY KEY,
+          horse_id        VARCHAR(20) NOT NULL,
+          horse_name      VARCHAR(100),
+          race_date       DATE NOT NULL,
+          racecourse      VARCHAR(10),
+          finish_position INTEGER,
+          distance        INTEGER,
+          going           VARCHAR(30),
+          race_class      VARCHAR(20),
+          draw            INTEGER,
+          jockey          VARCHAR(50),
+          odds            VARCHAR(20),
+          weight          INTEGER,
+          gear            VARCHAR(100),
+          scraped_at      TIMESTAMP DEFAULT NOW(),
+          UNIQUE(horse_id, race_date)
+        )`,
+       `CREATE INDEX IF NOT EXISTS idx_hrh_horse_id  ON horse_race_history(horse_id)`,
+       `CREATE INDEX IF NOT EXISTS idx_hrh_race_date ON horse_race_history(race_date)`,
+       // entries: horse entries for upcoming meetings, scraped daily from HKJC entries page
+       `CREATE TABLE IF NOT EXISTS entries (
+          id            SERIAL PRIMARY KEY,
+          scrape_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+          meeting_date  DATE NOT NULL,
+          racecourse    VARCHAR(10),
+          race_no       INTEGER NOT NULL,
+          race_class    VARCHAR(20),
+          distance      INTEGER,
+          track_type    VARCHAR(10),
+          rating_range  VARCHAR(20),
+          group_no      INTEGER,
+          trainer_name  VARCHAR(50),
+          horse_name    VARCHAR(100),
+          horse_note    VARCHAR(20),
+          UNIQUE(meeting_date, race_no, trainer_name, horse_name)
+        )`,
+        `CREATE INDEX IF NOT EXISTS idx_ent_meeting ON entries(meeting_date)`,
+        `CREATE INDEX IF NOT EXISTS idx_ent_scrape  ON entries(scrape_date)`,
+       // ── 足球角球分析（WhoScored Opta 事件流）──
+       `CREATE TABLE IF NOT EXISTS football_matches (
+          id           BIGINT PRIMARY KEY,      -- WhoScored matchId
+          league       VARCHAR(8)  NOT NULL,    -- EPL / BUN / LAL
+          season       VARCHAR(10) NOT NULL,    -- '2025-2026'
+          match_date   DATE        NOT NULL,
+          home_team    VARCHAR(100) NOT NULL,
+          away_team    VARCHAR(100) NOT NULL,
+          home_team_id BIGINT,
+          away_team_id BIGINT,
+          home_goals   INTEGER,
+          away_goals   INTEGER,
+          home_corners INTEGER,
+          away_corners INTEGER,
+          scraped_at   TIMESTAMP DEFAULT NOW()
+        )`,
+       `CREATE INDEX IF NOT EXISTS idx_fm_league_date ON football_matches(league, match_date)`,
+       // 每場分鐘級事件：corner / goal / red（game state + time-slicing 用）
+       `CREATE TABLE IF NOT EXISTS football_match_events (
+          id            BIGSERIAL PRIMARY KEY,
+          match_id      BIGINT NOT NULL REFERENCES football_matches(id) ON DELETE CASCADE,
+          source_event_id BIGINT,
+          minute        INTEGER NOT NULL,
+          expanded_minute INTEGER,
+          team_id       BIGINT,
+          is_home       BOOLEAN,
+          event_type    VARCHAR(12) NOT NULL,  -- corner / goal / red
+          period        VARCHAR(20),
+          scraped_at    TIMESTAMP DEFAULT NOW(),
+          UNIQUE (match_id, source_event_id)
+        )`,
+       `CREATE INDEX IF NOT EXISTS idx_fme_match ON football_match_events(match_id)`,
+       `CREATE INDEX IF NOT EXISTS idx_fme_type  ON football_match_events(event_type, minute)`,
+      ];
     for (const sql of migrations) {
       await client.query(sql);
     }

@@ -143,6 +143,50 @@ async function jobSectional() {
   }
 }
 
+// ── Entries (報名表) ─────────────────────────────────────────────────────────
+async function jobEntries() {
+  log('entries', '開始抓取報名表...');
+  try {
+    const meetings = await scraper.scrapeEntries();
+    if (meetings.length) {
+      const saved = await scraper.saveEntries(meetings);
+      log('entries', `報名表抓取完成: ${meetings.length} 個賽期, ${saved} 條報名記錄`);
+    } else {
+      log('entries', '沒有可用的報名表');
+    }
+  } catch (e) {
+    err('entries', '報名表抓取失敗', e);
+  }
+}
+
+// ── 06:00 晨操資料更新（高級排位表：賽前試閘 / 騎師親試）────────────────────
+// 為未來 3 日內有排位表嘅賽馬日逐匹刷新 trackwork 紀錄
+const trackwork = require('./trackwork');
+
+async function jobTrackwork() {
+  try {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT TO_CHAR(race_date,'YYYY-MM-DD') AS d
+       FROM racecard
+       WHERE race_date >= CURRENT_DATE AND race_date <= CURRENT_DATE + 3`
+    );
+    if (!rows.length) { log('trackwork', '未來 3 日無排位表，跳過'); return; }
+    for (const r of rows) {
+      log('trackwork', `開始抓取 ${r.d} 晨操紀錄`);
+      const res = await trackwork.start(r.d);
+      if (res.busy) { log('trackwork', '已有任務進行中，停止'); return; }
+      if (!res.total) { log('trackwork', `${r.d} 無馬匹`); continue; }
+      // 等呢一日抓完先抓下一日
+      while (trackwork.getStatus().active) {
+        await new Promise(ok => setTimeout(ok, 5000));
+      }
+      log('trackwork', `${r.d} 完成`);
+    }
+  } catch (e) {
+    err('trackwork', '晨操抓取失敗', e);
+  }
+}
+
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
 function setupJobs() {
@@ -164,6 +208,14 @@ function setupJobs() {
   // 04:00 HKT — 更新最近賽事分段時間
   cron.schedule('0 4 * * *', jobSectional, { timezone: 'Asia/Hong_Kong' });
   log('setup', '分段時間自動更新已排程: 每日 04:00 HKT');
+
+  // 05:00 HKT — 抓取報名表
+  cron.schedule('0 5 * * *', jobEntries, { timezone: 'Asia/Hong_Kong' });
+  log('setup', '報名表自動抓取已排程: 每日 05:00 HKT');
+
+  // 06:00 HKT — 更新未來賽事晨操紀錄（試閘 / 騎師親試）
+  cron.schedule('0 6 * * *', jobTrackwork, { timezone: 'Asia/Hong_Kong' });
+  log('setup', '晨操紀錄自動更新已排程: 每日 06:00 HKT');
 }
 
 module.exports = { setupJobs };

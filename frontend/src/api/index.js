@@ -29,8 +29,47 @@ export const getNextRace = () =>
 export const getRacecard = (date) =>
   api.get('/races/racecard', { params: date ? { date } : {} }).then(r => r.data);
 
+export const getAdvancedRacecard = (date) =>
+  api.get('/races/advanced', { params: date ? { date } : {} }).then(r => r.data);
+
+// 高級排位表：晨操紀錄批量抓取（賽前試閘 / 騎師親試）
+export const updateAdvancedTrackwork = (date, raceNo = null) =>
+  api.post('/advanced/trackwork', { date, race_no: raceNo }, { timeout: 15000 }).then(r => r.data);
+
+export const getAdvancedTrackworkStatus = () =>
+  api.get('/advanced/trackwork/status', { timeout: 10000 }).then(r => r.data);
+
+// 高級排位表：分段時間回補（同程最快末段 / 最快末段用）
+export const startSectionalBackfill = (date) =>
+  api.post('/advanced/sectional-backfill', { date }, { timeout: 15000 }).then(r => r.data);
+
+export const getSectionalBackfillStatus = () =>
+  api.get('/advanced/sectional-backfill/status', { timeout: 10000 }).then(r => r.data);
+
+// 高級排位表：手動更新排位體重
+export const updateDeclaredWeight = (date, raceNo, horseNo, declaredWeight) =>
+  api.patch('/races/advanced/weight',
+    { date, race_no: raceNo, horse_no: horseNo, declared_weight: declaredWeight },
+    { timeout: 15000 }).then(r => r.data);
+
 export const getFixtures = () =>
   api.get('/races').then(r => r.data);
+
+export const getAiAnalyze = (params = {}) =>
+  api.get('/ai/analyze', { params, timeout: 120000 }).then(r => r.data);
+
+export const getAiFactors = () =>
+  api.get('/ai/factors').then(r => r.data);
+
+// 步速分析（走位推算跑法 + 步速形勢）
+export const getPaceAnalysis = (date) =>
+  api.get('/races/pace', { params: date ? { date } : {}, timeout: 60000 }).then(r => r.data);
+
+export const getAiR2 = (params = {}) =>
+  api.get('/ai/r2', { params, timeout: 300000 }).then(r => r.data);
+
+export const getAiFactorWeights = (params = {}) =>
+  api.get('/ai/factor-weights', { params, timeout: 60000 }).then(r => r.data);
 
 export const triggerScrape = (type, body = null) =>
   api.post(`/scrape/${type}`, body, { timeout: 5000 }).then(r => r.data);

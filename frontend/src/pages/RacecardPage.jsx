@@ -137,7 +137,7 @@ export default function RacecardPage() {
 
   return (
     <div>
-      <h1 className="page-title">排位表</h1>
+      <h1 className="page-title">本地排位表</h1>
 
       {/* 天氣及跑道狀況 — 頁面最上方 */}
       <WindTrackerPanel />

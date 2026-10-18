@@ -329,3 +329,218 @@ tbody td:first-child {
   font-weight: bold;
   color: #1a365d;
 }
+
+/* ═══ AI 分析頁 ═════════════════════════════════════════════════════════ */
+.ai-page { max-width: 1280px; margin: 0 auto; }
+.ai-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.ai-title { margin: 0 0 6px; font-size: 1.5rem; color: #032169; }
+.ai-sub { margin: 0; font-size: 0.85rem; color: #666; line-height: 1.5; max-width: 760px; }
+.ai-head-right { display: flex; gap: 8px; align-items: center; }
+.ai-date { padding: 7px 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.88rem; }
+.ai-btn {
+  padding: 8px 18px; background: #032169; color: #fff; border: none;
+  border-radius: 5px; cursor: pointer; font-size: 0.88rem; font-weight: 600;
+}
+.ai-btn:hover:not(:disabled) { background: #052d85; }
+.ai-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.ai-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e1e5ea; margin: 18px 0 16px; flex-wrap: wrap; }
+.ai-tab {
+  padding: 9px 18px; background: none; border: none; border-bottom: 3px solid transparent;
+  margin-bottom: -2px; font-size: 0.92rem; color: #555; cursor: pointer;
+}
+.ai-tab:hover { color: #032169; }
+.ai-tab.active { color: #032169; border-bottom-color: #032169; font-weight: 700; }
+
+.ai-evidence {
+  background: #fffbea; border: 1px solid #e8d88a; border-left: 4px solid #d4af37;
+  border-radius: 6px; padding: 12px 16px; margin-bottom: 16px;
+}
+.ai-evidence-title { font-weight: 700; font-size: 0.85rem; color: #8a6d00; margin-bottom: 4px; }
+.ai-evidence-body { font-size: 0.86rem; line-height: 1.6; color: #4a3c00; }
+.ai-evidence-meta { font-size: 0.76rem; color: #8a6d00; margin-top: 6px; }
+
+.ai-race-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.ai-race-tab {
+  padding: 6px 12px; border: 1px solid #ccd3dc; background: #fff; border-radius: 20px;
+  cursor: pointer; font-size: 0.82rem; display: flex; flex-direction: column;
+  align-items: center; gap: 2px; line-height: 1.2;
+}
+.ai-race-tab-sub { font-size: 0.68rem; color: #888; }
+.ai-race-tab.active { background: #032169; color: #fff; border-color: #032169; }
+.ai-race-tab.active .ai-race-tab-sub { color: rgba(255,255,255,0.75); }
+
+.ai-race-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.ai-badge {
+  background: #eef2f7; color: #334; border-radius: 4px; padding: 3px 9px;
+  font-size: 0.76rem; font-weight: 600;
+}
+.ai-muted { color: #888; }
+.ai-pos { color: #1e7e34; font-weight: 700; }
+.ai-neg { color: #c0392b; font-weight: 700; }
+.ai-small { font-size: 0.76rem; }
+.ai-mono { font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem; }
+
+.ai-table-wrap { overflow-x: auto; border: 1px solid #dde3ea; border-radius: 6px; }
+.ai-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; background: #fff; }
+.ai-table th {
+  background: #f5f7fa; text-align: left; padding: 8px 9px; font-size: 0.74rem;
+  color: #556; border-bottom: 2px solid #dde3ea; position: sticky; top: 0; white-space: nowrap;
+}
+.ai-table td { padding: 7px 9px; border-bottom: 1px solid #eef1f5; vertical-align: middle; }
+.ai-table tbody tr:hover { background: #fafbfd; }
+.ai-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ai-top { background: #fffdf2; }
+.ai-horse { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.ai-horse-name { font-weight: 700; color: #032169; }
+.ai-horse-sub { font-size: 0.72rem; color: #999; }
+.ai-tag {
+  background: #eef2f7; color: #556; border-radius: 3px; padding: 1px 5px; font-size: 0.66rem;
+}
+.ai-tag-warn {
+  background: #fdecea; color: #c0392b; border-radius: 3px; padding: 1px 5px;
+  font-size: 0.66rem; font-weight: 700;
+}
+.ai-bar-wrap { min-width: 96px; }
+.ai-bar { height: 5px; background: #eef1f5; border-radius: 3px; overflow: hidden; margin-top: 3px; }
+.ai-bar-fill { height: 100%; background: linear-gradient(90deg, #4a90d9, #032169); transition: width .3s; }
+.ai-grade {
+  display: inline-block; color: #fff; border-radius: 3px; padding: 2px 7px;
+  font-size: 0.7rem; font-weight: 700; white-space: nowrap;
+}
+
+.ai-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; margin-top: 16px; }
+.ai-card {
+  background: #fff; border: 1px solid #dde3ea; border-radius: 7px; padding: 14px 16px; margin-bottom: 14px;
+}
+.ai-cards .ai-card { margin-bottom: 0; }
+.ai-card h4 { margin: 0 0 10px; font-size: 0.9rem; color: #032169; }
+.ai-card-row {
+  display: flex; align-items: center; gap: 9px; padding: 6px 0;
+  border-bottom: 1px dashed #eef1f5; font-size: 0.82rem; flex-wrap: wrap;
+}
+.ai-card-row:last-child { border-bottom: none; }
+.ai-rank {
+  width: 20px; height: 20px; border-radius: 50%; background: #032169; color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700;
+}
+.ai-card-name { font-weight: 700; color: #032169; }
+
+.ai-horse-picker { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.ai-chip {
+  padding: 5px 10px; border: 1px solid #ccd3dc; background: #fff; border-radius: 5px;
+  cursor: pointer; font-size: 0.78rem; display: flex; gap: 6px; align-items: baseline;
+}
+.ai-chip-sub { color: #777; font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+.ai-chip.active { background: #032169; color: #fff; border-color: #032169; }
+.ai-chip.active .ai-chip-sub { color: rgba(255,255,255,0.8); }
+
+.ai-horse-summary {
+  background: #f5f7fa; border-radius: 6px; padding: 11px 14px; margin-bottom: 16px;
+  font-size: 0.88rem;
+}
+.ai-horse-summary .ai-muted { font-size: 0.8rem; margin-top: 3px; }
+
+.ai-group { margin-bottom: 20px; }
+.ai-group-title {
+  font-size: 0.86rem; color: #032169; margin: 0 0 9px; padding-bottom: 5px;
+  border-bottom: 2px solid #e1e5ea;
+}
+.ai-factor { padding: 7px 0; }
+.ai-factor-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.ai-factor-label { font-size: 0.85rem; font-weight: 600; }
+.ai-factor-score { font-size: 0.85rem; font-variant-numeric: tabular-nums; font-weight: 700; }
+.ai-factor-bar { position: relative; height: 9px; background: #f0f3f7; border-radius: 5px; margin: 5px 0 4px; }
+.ai-factor-center { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: #bcc5d0; }
+.ai-factor-fill { position: absolute; top: 0; height: 100%; border-radius: 5px; }
+.ai-factor-fill.pos { background: #28a745; }
+.ai-factor-fill.neg { background: #dc3545; }
+.ai-factor-detail { font-size: 0.74rem; color: #777; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.ai-factor-ref { color: #a0a8b4; font-size: 0.68rem; }
+
+.ai-form { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px; }
+.ai-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; color: #556; }
+.ai-form input { padding: 7px 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.85rem; }
+
+.ai-error {
+  background: #fdecea; color: #c0392b; border: 1px solid #f5c6cb; border-radius: 6px;
+  padding: 11px 15px; font-size: 0.86rem; margin: 12px 0;
+}
+.ai-empty {
+  background: #f5f7fa; color: #777; border-radius: 6px; padding: 26px 15px;
+  text-align: center; font-size: 0.9rem; margin: 14px 0;
+}
+
+.ai-verdict { background: #fff; border: 1px solid #dde3ea; border-radius: 7px; padding: 15px; margin-bottom: 14px; }
+.ai-verdict.good { border-left: 5px solid #28a745; }
+.ai-verdict.fair { border-left: 5px solid #f0ad4e; }
+.ai-verdict.poor, .ai-verdict.none { border-left: 5px solid #dc3545; }
+.ai-verdict-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 12px; line-height: 1.55; }
+.ai-r2-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.ai-r2-box {
+  background: #f5f7fa; border-radius: 6px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 3px; font-size: 0.75rem;
+}
+.ai-r2-num { font-size: 1.32rem; font-weight: 700; color: #032169; font-variant-numeric: tabular-nums; }
+
+.ai-list { margin: 0; padding-left: 19px; font-size: 0.85rem; line-height: 1.75; }
+.ai-list li { margin-bottom: 5px; }
+.ai-list b { color: #032169; }
+
+@media (max-width: 720px) {
+  .ai-head { flex-direction: column; }
+  .ai-table { font-size: 0.76rem; }
+  .ai-table th, .ai-table td { padding: 6px; }
+}
+.ai-evidence-stats {
+  display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 7px;
+  font-size: 0.75rem; color: #6b5a10; font-variant-numeric: tabular-nums;
+}
+.ai-evidence-stats span { background: #fff6d6; border-radius: 4px; padding: 2px 7px; }
+
+/* 因素剔選面板 */
+.ai-fp {
+  background: #fff; border: 1px solid #dde3ea; border-radius: 7px;
+  padding: 12px 16px; margin-bottom: 14px;
+}
+.ai-fp-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; font-size: 0.85rem; flex-wrap: wrap; }
+.ai-fp-spacer { flex: 1; }
+.ai-fp-btn {
+  padding: 4px 12px; border: 1px solid #ccd3dc; background: #fff; border-radius: 4px;
+  cursor: pointer; font-size: 0.78rem; color: #334;
+}
+.ai-fp-btn:hover { border-color: #032169; color: #032169; }
+.ai-fp-group { display: flex; gap: 10px; padding: 7px 0; border-top: 1px dashed #eef1f5; }
+.ai-fp-group-name {
+  min-width: 88px; font-size: 0.78rem; color: #032169; font-weight: 700; padding-top: 4px;
+}
+.ai-fp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-fp-chip {
+  padding: 4px 11px; border-radius: 14px; border: 1px solid #032169;
+  background: #032169; color: #fff; cursor: pointer; font-size: 0.76rem;
+  transition: opacity .15s;
+}
+.ai-fp-chip:hover { opacity: 0.85; }
+.ai-fp-chip.off {
+  background: #fff; color: #98a2b0; border-color: #ccd3dc; text-decoration: line-through;
+}
+.ai-btn-ghost { background: #fff; color: #032169; border: 1px solid #032169; }
+.ai-btn-ghost:hover:not(:disabled) { background: #eef2fa; }
+.ai-btn-ghost.is-partial { background: #fff6d6; border-color: #d4af37; color: #8a6d00; }
+.ai-factor.disabled { opacity: 0.45; }
+.ai-factor.disabled .ai-factor-label { text-decoration: line-through; }
+
+/* 高級排位表：左右拉時固定馬號/馬名欄 */
+.adv-stick {
+  position: sticky;
+  z-index: 2;
+}
+thead .adv-stick { z-index: 4; }
+/* 馬號欄鎖死 44px（馬名欄嘅 left offset 依賴呢個寬度） */
+.adv-stick-w44 { width: 44px; min-width: 44px; max-width: 44px; padding-left: 4px; padding-right: 4px; }
+/* 馬名欄右邊陰影分隔 */
+.adv-stick-r { box-shadow: 4px 0 6px -2px rgba(0,0,0,0.18); }
+/* sticky 儲存格要不透明底色（配合斑馬紋 + hover） */
+tbody td.adv-stick { background: #fff; }
+tbody tr:nth-child(even) td.adv-stick { background: #f8f9ff; }
+tbody tr:hover td.adv-stick { background: #e8f0ff; }

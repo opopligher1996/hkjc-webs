@@ -257,6 +257,7 @@ function parsePastRecTable(table, type) {
       const going = cellText(5);
       const draw = parseInt(cellText(6)) || 0;
       const jockeyName = cellText(9);
+      const winOdds = parseFloat(cellText(8)) || null;
 
       records.push({
         raceDate: currentDate,
@@ -271,6 +272,7 @@ function parsePastRecTable(table, type) {
         finishPos,
         totalRunners,
         jockeyName,
+        winOdds,
       });
     }
   });
@@ -412,11 +414,12 @@ async function scrapeTrainerPastRec(trainerId, onProgress) {
             const going = c(5);
             const draw = parseInt(c(6)) || 0;
             const rating = parseInt(c(7)) || null;
+            const winOdds = parseFloat(c(8)) || null;
             const jockeyName = c(9) || null;
             const gear = c(10) || null;
             const horseWeight = parseInt(c(11)) || null;
             const actualWeight = parseInt(c(12)) || null;
-            records.push({ raceDate: currentDate, racecourse: currentVenue, raceNo, horseName, draw, raceClass: trackClassRaw, trackType, distance, going, finishPos, totalRunners, jockeyName, rating, gear, horseWeight, actualWeight });
+            records.push({ raceDate: currentDate, racecourse: currentVenue, raceNo, horseName, draw, raceClass: trackClassRaw, trackType, distance, going, finishPos, totalRunners, jockeyName, rating, gear, horseWeight, actualWeight, winOdds });
           }
         });
 
@@ -526,6 +529,201 @@ async function scrapeFixtures() {
   }
 
   console.log(`[Fixtures] Saved ${unique.length} fixtures`);
+  return unique;
+}
+
+// ── Historical Race Results Scraper ───────────────────────────────────────
+// Scrapes full race results (including finishing position & win odds) from
+// the localresults page and saves directly to race_records.
+// URL: .../localresults?racedate=YYYY/MM/DD&Racecourse=ST&RaceNo=N
+//
+// Fetches all races in parallel for speed (~5s/day instead of ~37s).
+// Returns: { raceDate, racecourse, races: [...] }
+async function scrapeRaceResults(raceDate, racecourse) {
+  const dateUrl = raceDate.replace(/-/g, '/');
+
+  // Parse a single race page
+  function parseRace(html, raceNo) {
+    const $ = cheerio.load(html);
+    const perfTable = $('div.performance table tbody');
+    if (!perfTable.length || perfTable.find('tr').length === 0) return null;
+
+    let raceClass = '', distance = 0, trackType = '', going = '';
+    $('div.race_tab table tbody tr').each((_, tr) => {
+      const cells = $(tr).find('td');
+      const c0 = cells.eq(0).text().trim();
+      const cm = c0.match(/第[一二三四五六七八九十]\s*班|國際[一二三四五]\s*級|Group\s*\d/);
+      if (cm) raceClass = cm[0].replace(/\s/g, '');
+      const dm = c0.match(/(\d{3,4})\s*米/);
+      if (dm) distance = parseInt(dm[1]);
+      const tc = cells.eq(2).text().trim();
+      if (tc.includes('草地')) trackType = 'TURF';
+      else if (tc.includes('全天候') || tc.includes('泥地')) trackType = 'AWT';
+      if (c0.includes('好地') || c0.includes('好/快') || c0.includes('軟地') || c0.includes('黏地')) going = c0;
+    });
+
+    const horses = [];
+    perfTable.find('tr').each((idx, tr) => {
+      const tds = $(tr).find('td');
+      if (tds.length < 8) return;
+
+      let finishPos = null;
+      const col0Text = tds.eq(0).text().trim();
+      const col0Num = parseInt(col0Text, 10);
+      if (!isNaN(col0Num)) finishPos = col0Num;
+      else finishPos = idx + 1;
+
+      const horseNo = parseInt(tds.eq(1).text().trim()) || 0;
+      if (!horseNo) return;
+
+      const horseLink = tds.eq(2).find('a');
+      const horseName = horseLink.text().trim() || tds.eq(2).text().trim();
+      const horseHref = horseLink.attr('href') || '';
+      const horseIdM = horseHref.match(/horseid=([^&]+)/i);
+      const horseIdFull = horseIdM ? horseIdM[1] : '';
+
+      const jockeyLink = tds.eq(3).find('a');
+      const jockeyName = jockeyLink.text().trim() || tds.eq(3).text().trim();
+      const jockeyHref = jockeyLink.attr('href') || '';
+      const jockeyId = (jockeyHref.match(/jockeyid=([^&]+)/i) || [])[1] || '';
+
+      const trainerLink = tds.eq(4).find('a');
+      const trainerName = trainerLink.text().trim() || tds.eq(4).text().trim();
+      const trainerHref = trainerLink.attr('href') || '';
+      const trainerId = (trainerHref.match(/trainerid=([^&]+)/i) || [])[1] || '';
+
+      horses.push({
+        horse_no: horseNo, horse_name: horseName, horse_id: horseIdFull,
+        jockey_id: jockeyId, jockey_name: jockeyName,
+        trainer_id: trainerId, trainer_name: trainerName,
+        finish_position: finishPos,
+        draw: parseInt(tds.eq(7).text().trim()) || 0,
+        actual_weight: parseFloat(tds.eq(5).text().trim()) || null,
+        horse_weight: parseInt(tds.eq(6).text().trim()) || null,
+        win_odds: parseFloat(tds.eq(11).text().trim()) || null,
+      });
+    });
+
+    if (!horses.length) return null;
+    return { race_no: raceNo, race_class: raceClass, track_type: trackType, distance, going, horses };
+  }
+
+  // Fetch all races in parallel
+  const promises = [];
+  for (let raceNo = 1; raceNo <= 12; raceNo++) {
+    const url = `https://racing.hkjc.com/zh-hk/local/information/localresults?racedate=${dateUrl}&Racecourse=${racecourse}&RaceNo=${raceNo}`;
+    promises.push(
+      axios.get(url, { timeout: 10000, headers: { 'User-Agent': 'Mozilla/5.0' } })
+        .then(resp => parseRace(resp.data, raceNo))
+        .catch(() => null)
+    );
+  }
+  const results = await Promise.all(promises);
+
+  // Filter nulls and sort by race_no
+  const allRaces = results.filter(Boolean).sort((a, b) => a.race_no - b.race_no);
+  return { raceDate, racecourse, races: allRaces };
+}
+
+// Save scraped race results to race_records table
+async function saveRaceRecords(raceDate, racecourse, races) {
+  let saved = 0;
+  for (const race of races) {
+    const totalRunners = race.horses.length;
+    for (const h of race.horses) {
+      try {
+        const horseNo = race.race_no * 1000 + (h.draw || 0);
+        await pool.query(
+          `INSERT INTO race_records
+             (race_date, racecourse, race_no, race_class, track_type, distance, going,
+              horse_no, draw, horse_name, finish_position, total_runners,
+              jockey_id, trainer_id, trainer_name, actual_weight, horse_weight, win_odds)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
+                   COALESCE((SELECT id FROM jockeys WHERE name_zh = $19 ORDER BY (EXISTS(SELECT 1 FROM race_records r WHERE r.jockey_id = jockeys.id)) DESC, id LIMIT 1), $13),
+                   COALESCE((SELECT id FROM trainers WHERE name_zh = $15 ORDER BY (EXISTS(SELECT 1 FROM race_records r WHERE r.trainer_id = trainers.id)) DESC, id LIMIT 1), $14),
+                   $15,$16,$17,$18)
+           ON CONFLICT (race_date, racecourse, race_no, horse_no) DO UPDATE SET
+             finish_position=$11, total_runners=$12,
+             jockey_id=COALESCE(EXCLUDED.jockey_id, race_records.jockey_id),
+             trainer_id=COALESCE(EXCLUDED.trainer_id, race_records.trainer_id),
+             trainer_name=$15, race_class=$4, track_type=$5, distance=$6, going=$7,
+             draw=$9, horse_name=$10, actual_weight=$16, horse_weight=$17,
+             win_odds=COALESCE($18, race_records.win_odds)`,
+          [raceDate, racecourse, race.race_no, race.race_class, race.track_type,
+           race.distance, race.going, horseNo, h.draw, h.horse_name,
+           h.finish_position, totalRunners, h.jockey_id, h.trainer_id, h.trainer_name,
+           h.actual_weight, h.horse_weight, h.win_odds, h.jockey_name || null]
+        );
+        saved++;
+      } catch (e) {
+        // ignore individual errors
+      }
+    }
+  }
+  return saved;
+}
+
+// ── Historical Fixtures Scraper ───────────────────────────────────────────
+// Scrapes the HKJC fixture calendar for a year/month range and saves to
+// the fixtures table. Used to find all historical race dates for backfilling.
+async function scrapeFixturesForRange(startYear, startMonth, endYear, endMonth) {
+  const page = await newPage();
+  const fixtures = [];
+
+  try {
+    let y = startYear, m = startMonth;
+    while (y < endYear || (y === endYear && m <= endMonth)) {
+      const paddedMonth = String(m).padStart(2, '0');
+      await page.goto(
+        `https://racing.hkjc.com/zh-hk/local/information/fixture?calyear=${y}&calmonth=${paddedMonth}`,
+        { waitUntil: 'networkidle2', timeout: 20000 }
+      );
+      await sleep(800);
+
+      const monthFixtures = await page.evaluate((yy, pm) => {
+        const found = [];
+        document.querySelectorAll('td.calendar').forEach(td => {
+          const daySpan = td.querySelector('span.f_fl.f_fs14, span.f_fs14');
+          if (!daySpan) return;
+          const day = parseInt(daySpan.textContent.trim(), 10);
+          if (!day || isNaN(day)) return;
+          let racecourse = 'ST';
+          const imgs = td.querySelectorAll('img');
+          for (const img of imgs) {
+            const alt = (img.alt || '').toUpperCase();
+            if (alt === 'ST' || alt === 'HV' || alt === 'CGA') { racecourse = alt; break; }
+          }
+          const paddedDay = String(day).padStart(2, '0');
+          found.push({ date: `${yy}-${pm}-${paddedDay}`, racecourse });
+        });
+        return found;
+      }, y, paddedMonth);
+
+      fixtures.push(...monthFixtures);
+      console.log(`[FixturesRange] ${y}/${paddedMonth}: ${monthFixtures.length} dates`);
+
+      m++;
+      if (m > 12) { m = 1; y++; }
+    }
+  } catch (err) {
+    console.error('[FixturesRange] Error:', err.message);
+  } finally {
+    await page.close();
+  }
+
+  // Save to fixtures table
+  const seen = new Set();
+  const unique = fixtures.filter(f => { if (seen.has(f.date)) return false; seen.add(f.date); return true; });
+  for (const f of unique) {
+    try {
+      await pool.query(
+        `INSERT INTO fixtures (race_date, racecourse, season) VALUES ($1, $2, 'Historical')
+         ON CONFLICT (race_date) DO NOTHING`,
+        [f.date, f.racecourse]
+      );
+    } catch (e) { /* ignore */ }
+  }
+  console.log(`[FixturesRange] Saved ${unique.length} fixtures`);
   return unique;
 }
 
@@ -712,10 +910,19 @@ async function scrapeRacecard(raceDate, racecourse) {
           const dm = document.body.innerText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
           if (dm) raceDate = `${dm[3]}-${dm[2]}-${dm[1]}`;
         }
+        // Extract racecourse from URL first (most reliable), fallback to heading text
         let racecourse = 'ST';
-        const text = document.body.innerText;
-        if (text.includes('跑馬地')) racecourse = 'HV';
-        else if (text.includes('從化')) racecourse = 'CGA';
+        const rcMatch = url.match(/[Rr]acecourse=([A-Z]+)/);
+        if (rcMatch) {
+          racecourse = rcMatch[1];
+        } else {
+          // Fallback: look for racecourse in prominent heading text only
+          const headings = Array.from(document.querySelectorAll('h1,h2,h3,.race-header,.title'))
+            .map(el => el.textContent).join(' ');
+          if (headings.includes('跑馬地')) racecourse = 'HV';
+          else if (headings.includes('從化')) racecourse = 'CGA';
+          else if (document.body.innerText.includes('跑馬地')) racecourse = 'HV';
+        }
         const raceLinks = new Set();
         document.querySelectorAll('a[href*="RaceNo"], a[href*="raceno"], a').forEach(a => {
           const m = (a.href || '').match(/[Rr]ace[Nn]o=(\d+)/);
@@ -918,22 +1125,41 @@ async function saveJockeyRecords(jockeyId, records) {
   let saved = 0;
   for (const r of records) {
     try {
-      // Use a unique horse_no surrogate: raceNo * 1000 + draw (draw is gate number 1-20)
-      const horseNo = r.raceNo * 1000 + (r.draw || 0);
-      await pool.query(
-        `INSERT INTO race_records
-           (race_date, racecourse, race_no, race_class, track_type, distance, going, horse_no, draw,
-            finish_position, total_runners, jockey_id, horse_name, rating, trainer_name, gear, horse_weight, actual_weight)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-         ON CONFLICT (race_date, racecourse, race_no, horse_no) DO UPDATE SET
-           finish_position=$10, total_runners=$11, jockey_id=$12, race_class=$4, track_type=$5,
-           distance=$6, going=$7, draw=$9, horse_name=$13, rating=$14, trainer_name=$15,
-           gear=$16, horse_weight=$17, actual_weight=$18`,
-        [r.raceDate, r.racecourse, r.raceNo, r.raceClass, r.trackType,
-         r.distance, r.going, horseNo, r.draw,
-         r.finishPos, r.totalRunners, jockeyId, r.horseName,
-         r.rating, r.trainerName, r.gear, r.horseWeight, r.actualWeight]
+      // 騎師 profile 頁嘅 raceNo 係連續編號（同 localresults 嘅 meeting 編號唔同），
+      // 直接 INSERT 會整 duplicated rows（統計雙計嘅根源）。
+      // 所以先按 (date, course, horse_name) UPDATE 既有行，冇先至 INSERT。
+      const upd = await pool.query(
+        `UPDATE race_records SET
+           finish_position = COALESCE($3, finish_position),
+           total_runners   = COALESCE($4, total_runners),
+           rating          = COALESCE($5, rating),
+           gear            = COALESCE($6, gear),
+           horse_weight    = COALESCE($7, horse_weight),
+           actual_weight   = COALESCE($8, actual_weight),
+           win_odds        = COALESCE($9, win_odds),
+           jockey_id       = COALESCE(jockey_id, $11)
+         WHERE race_date=$1 AND racecourse=$2 AND horse_name=$10`,
+        [r.raceDate, r.racecourse, r.finishPos, r.totalRunners, r.rating,
+         r.gear, r.horseWeight, r.actualWeight, r.winOdds || null, r.horseName, jockeyId]
       );
+      if (upd.rowCount === 0) {
+        const horseNo = r.raceNo * 1000 + (r.draw || 0);
+        await pool.query(
+          `INSERT INTO race_records
+             (race_date, racecourse, race_no, race_class, track_type, distance, going, horse_no, draw,
+              finish_position, total_runners, jockey_id, horse_name, rating, trainer_name, gear, horse_weight, actual_weight, win_odds)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+           ON CONFLICT (race_date, racecourse, race_no, horse_no) DO UPDATE SET
+             finish_position=$10, total_runners=$11, jockey_id=$12, race_class=$4, track_type=$5,
+             distance=$6, going=$7, draw=$9, horse_name=$13, rating=$14,
+             gear=$16, horse_weight=$17, actual_weight=$18,
+             win_odds=COALESCE($19, race_records.win_odds)`,
+          [r.raceDate, r.racecourse, r.raceNo, r.raceClass, r.trackType,
+           r.distance, r.going, horseNo, r.draw,
+           r.finishPos, r.totalRunners, jockeyId, r.horseName,
+           r.rating, r.trainerName, r.gear, r.horseWeight, r.actualWeight, r.winOdds || null]
+        );
+      }
       saved++;
     } catch (e) {
       console.error(`[saveJockeyRecords] Error saving record:`, e.message, JSON.stringify(r));
@@ -946,21 +1172,42 @@ async function saveTrainerRecords(trainerId, records) {
   let saved = 0;
   for (const r of records) {
     try {
-      const horseNo = r.raceNo * 1000 + (r.draw || 0);
-      await pool.query(
-        `INSERT INTO race_records
-           (race_date, racecourse, race_no, race_class, track_type, distance, going, horse_no, draw,
-            finish_position, total_runners, trainer_id, horse_name, rating, gear, horse_weight, actual_weight)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-         ON CONFLICT (race_date, racecourse, race_no, horse_no) DO UPDATE SET
-           finish_position=$10, total_runners=$11, trainer_id=$12, race_class=$4, track_type=$5,
-           distance=$6, going=$7, draw=$9, horse_name=$13, rating=$14,
-           gear=$15, horse_weight=$16, actual_weight=$17`,
-        [r.raceDate, r.racecourse, r.raceNo, r.raceClass, r.trackType,
-         r.distance, r.going, horseNo, r.draw,
-         r.finishPos, r.totalRunners, trainerId, r.horseName,
-         r.rating, r.gear, r.horseWeight, r.actualWeight]
+      // 同 saveJockeyRecords：profile 頁場次編號同 localresults 唔同，
+      // 先按 (date, course, horse_name) UPDATE，冇先至 INSERT，避免重複行
+      const upd = await pool.query(
+        `UPDATE race_records SET
+           finish_position = COALESCE($3, finish_position),
+           total_runners   = COALESCE($4, total_runners),
+           rating          = COALESCE($5, rating),
+           gear            = COALESCE($6, gear),
+           horse_weight    = COALESCE($7, horse_weight),
+           actual_weight   = COALESCE($8, actual_weight),
+           win_odds        = COALESCE($9, win_odds),
+           trainer_id      = COALESCE((SELECT id FROM trainers WHERE name_zh=$10 ORDER BY (EXISTS(SELECT 1 FROM race_records r WHERE r.trainer_id = trainers.id)) DESC, id LIMIT 1), trainer_id)
+         WHERE race_date=$1 AND racecourse=$2 AND horse_name=$11`,
+        [r.raceDate, r.racecourse, r.finishPos, r.totalRunners, r.rating,
+         r.gear, r.horseWeight, r.actualWeight, r.winOdds || null, r.trainerName, r.horseName]
       );
+      if (upd.rowCount === 0) {
+        const horseNo = r.raceNo * 1000 + (r.draw || 0);
+        await pool.query(
+          `INSERT INTO race_records
+             (race_date, racecourse, race_no, race_class, track_type, distance, going, horse_no, draw,
+              finish_position, total_runners, trainer_id, horse_name, rating, gear, horse_weight, actual_weight, win_odds)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
+                   COALESCE((SELECT id FROM trainers WHERE name_zh=$12 ORDER BY (EXISTS(SELECT 1 FROM race_records r WHERE r.trainer_id = trainers.id)) DESC, id LIMIT 1), $13),
+                   $14,$15,$16,$17,$18,$19)
+           ON CONFLICT (race_date, racecourse, race_no, horse_no) DO UPDATE SET
+             finish_position=$10, total_runners=$11, trainer_id=EXCLUDED.trainer_id, race_class=$4, track_type=$5,
+             distance=$6, going=$7, draw=$9, horse_name=$14, rating=$15,
+             gear=$16, horse_weight=$17, actual_weight=$18,
+             win_odds=COALESCE($19, race_records.win_odds)`,
+          [r.raceDate, r.racecourse, r.raceNo, r.raceClass, r.trackType,
+           r.distance, r.going, horseNo, r.draw,
+           r.finishPos, r.totalRunners, r.trainerName, trainerId, r.horseName,
+           r.rating, r.gear, r.horseWeight, r.actualWeight, r.winOdds || null]
+        );
+      }
       saved++;
     } catch (e) {
       // ignore
@@ -970,7 +1217,14 @@ async function saveTrainerRecords(trainerId, records) {
 }
 
 async function saveRacecard(raceDate, racecourse, races) {
-  await pool.query(`DELETE FROM racecard WHERE race_date = $1`, [raceDate]);
+  // 若今次抓取沒有資料，保留原有排位表，不取代
+  const raceNos = [...new Set((races || []).map(r => r.race_no).filter(Boolean))];
+  if (raceNos.length === 0) {
+    console.warn(`[saveRacecard] ${raceDate}: 沒有抓取到任何場次資料，保留原有資料`);
+    return 0;
+  }
+  // 只刪除今次實際抓取到的場次，其餘場次保留原有資料
+  await pool.query(`DELETE FROM racecard WHERE race_date = $1 AND race_no = ANY($2)`, [raceDate, raceNos]);
   let saved = 0;
   for (const race of races) {
     for (const h of race.horses) {
@@ -981,11 +1235,18 @@ async function saveRacecard(raceDate, racecourse, races) {
               horse_no, horse_id, draw, horse_name, recent_form,
               jockey_id, jockey_name, trainer_id, trainer_name,
               actual_weight, rating, rating_change, declared_weight, gear, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,NOW())
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
+                   COALESCE((SELECT id FROM jockeys WHERE name_zh = $14 ORDER BY (EXISTS(SELECT 1 FROM race_records r WHERE r.jockey_id = jockeys.id)) DESC, id LIMIT 1), $13),
+                   $14,
+                   COALESCE((SELECT id FROM trainers WHERE name_zh = $16 ORDER BY (EXISTS(SELECT 1 FROM race_records r WHERE r.trainer_id = trainers.id)) DESC, id LIMIT 1), $15),
+                   $16,$17,$18,$19,$20,$21,NOW())
            ON CONFLICT (race_date, race_no, horse_no) DO UPDATE SET
              racecourse=$2, race_class=$4, distance=$5, track_type=$6, going=$7,
              horse_id=$9, draw=$10, horse_name=$11, recent_form=$12,
-             jockey_id=$13, jockey_name=$14, trainer_id=$15, trainer_name=$16,
+             jockey_id=COALESCE((SELECT id FROM jockeys WHERE name_zh = $14 ORDER BY (EXISTS(SELECT 1 FROM race_records r WHERE r.jockey_id = jockeys.id)) DESC, id LIMIT 1), EXCLUDED.jockey_id),
+             jockey_name=$14,
+             trainer_id=COALESCE((SELECT id FROM trainers WHERE name_zh = $16 ORDER BY (EXISTS(SELECT 1 FROM race_records r WHERE r.trainer_id = trainers.id)) DESC, id LIMIT 1), EXCLUDED.trainer_id),
+             trainer_name=$16,
              actual_weight=$17, rating=$18, rating_change=$19, declared_weight=$20, gear=$21,
              updated_at=NOW()`,
           [raceDate, racecourse || 'ST', race.race_no, race.race_class, race.distance,
@@ -1329,9 +1590,22 @@ async function saveHorse(horseId, info) {
           trainer_id, owner, current_rating, season_rating, sire, dam, updated_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,NOW())
        ON CONFLICT (id) DO UPDATE SET
-         name_zh=$2, origin=$3, age=$4, color=$5, sex=$6, wins=$7, seconds=$8, thirds=$9,
-         total_starts=$10, trainer_id=$11, owner=$12, current_rating=$13, season_rating=$14,
-         sire=$15, dam=$16, updated_at=NOW()`,
+         name_zh=COALESCE(EXCLUDED.name_zh, horses.name_zh),
+         origin=COALESCE(EXCLUDED.origin, horses.origin),
+         age=COALESCE(EXCLUDED.age, horses.age),
+         color=COALESCE(EXCLUDED.color, horses.color),
+         sex=COALESCE(EXCLUDED.sex, horses.sex),
+         wins=COALESCE(EXCLUDED.wins, horses.wins),
+         seconds=COALESCE(EXCLUDED.seconds, horses.seconds),
+         thirds=COALESCE(EXCLUDED.thirds, horses.thirds),
+         total_starts=COALESCE(EXCLUDED.total_starts, horses.total_starts),
+         trainer_id=COALESCE(EXCLUDED.trainer_id, horses.trainer_id),
+         owner=COALESCE(EXCLUDED.owner, horses.owner),
+         current_rating=COALESCE(EXCLUDED.current_rating, horses.current_rating),
+         season_rating=COALESCE(EXCLUDED.season_rating, horses.season_rating),
+         sire=COALESCE(EXCLUDED.sire, horses.sire),
+         dam=COALESCE(EXCLUDED.dam, horses.dam),
+         updated_at=NOW()`,
       [horseId, info.name_zh || null, info.origin || null, info.age || null,
        info.color || null, info.sex || null, info.wins || null, info.seconds || null,
        info.thirds || null, info.total_starts || null, info.trainer_id || null,
@@ -2179,6 +2453,106 @@ async function scrapeVetRecord(raceDate, racecourse, raceNo) {
 }
 
 // ── Scrape Trackwork for a specific race ──────────────────────────────────────
+// ── Scrape per-horse trackwork history (晨操紀錄) ─────────────────────────────
+// URL: /zh-hk/local/information/trackworkresult?horseid=HK_YYYY_XXXX
+// Returns array of { date (YYYY-MM-DD), type (試閘/快操/游水/出賽/...), venue, details }
+// Only barrier trial (試閘) entries are needed for the analysis.
+async function scrapeHorseTrackworkHistory(horseId) {
+  const url = `https://racing.hkjc.com/zh-hk/local/information/trackworkresult?horseid=${encodeURIComponent(horseId)}`;
+  const page = await newPage();
+  try {
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
+    await sleep(1500);
+
+    return await page.evaluate(() => {
+      const rows = [];
+      document.querySelectorAll('tr').forEach(tr => {
+        const cells = Array.from(tr.querySelectorAll('td,th')).map(td => td.innerText.trim().replace(/\s+/g, ' '));
+        if (cells.length < 2) return;
+        const dateMatch = cells[0].match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (!dateMatch) return;
+        const isoDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+        rows.push({
+          date:    isoDate,
+          type:    cells[1] || '',
+          venue:   cells[2] || '',
+          details: cells[3] || '',
+        });
+      });
+      return rows;
+    });
+  } finally {
+    await page.close();
+  }
+}
+
+// URL: /zh-hk/local/information/horse?horseid=HK_YYYY_XXXX
+// Scrapes the past-performance table (近三季往績紀錄) from the horse profile page.
+// Returns array of {race_date, racecourse, finish_position, distance, going, race_class, draw, jockey, odds, weight, gear}
+async function scrapeHorseRaceHistory(horseId) {
+  const url = `https://racing.hkjc.com/zh-hk/local/information/horse?horseid=${encodeURIComponent(horseId)}`;
+  const page = await newPage();
+  try {
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
+    await sleep(1500);
+
+    return await page.evaluate(() => {
+      // Find the performance table by its distinctive headers (場次, 名次, 日期)
+      let perfTable = null;
+      for (const table of document.querySelectorAll('table')) {
+        const headerRow = table.querySelector('tr');
+        if (!headerRow) continue;
+        const text = headerRow.innerText || '';
+        if (text.includes('名次') && text.includes('日期') && text.includes('場次')) {
+          perfTable = table;
+          break;
+        }
+      }
+      if (!perfTable) return [];
+
+      const races = [];
+      perfTable.querySelectorAll('tr').forEach(tr => {
+        const cells = Array.from(tr.querySelectorAll('td')).map(td => td.innerText.trim().replace(/\s+/g, ' '));
+        if (cells.length < 6) return;
+
+        // Col 0: 場次 (cumulative race no), Col 1: 名次, Col 2: 日期 (DD/MM/YY)
+        const dateMatch = cells[2] && cells[2].match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
+        if (!dateMatch) return;
+
+        const year = `20${dateMatch[3]}`;
+        const isoDate = `${year}-${dateMatch[2]}-${dateMatch[1]}`;
+
+        const racecourseRaw = cells[3] || '';
+        const racecourse = racecourseRaw.startsWith('沙田') ? 'ST'
+          : racecourseRaw.startsWith('跑馬地') ? 'HV'
+          : racecourseRaw.split(' ')[0];
+
+        const pos = parseInt(cells[1], 10);
+        const dist = parseInt((cells[4] || '').replace(/\D/g, ''), 10);
+        const drawVal = parseInt(cells[7], 10);
+        const weightVal = parseInt(cells[13], 10);
+
+        races.push({
+          race_date:       isoDate,
+          racecourse,
+          finish_position: isNaN(pos) ? null : pos,
+          distance:        isNaN(dist) ? null : dist,
+          going:           cells[5] || null,
+          race_class:      cells[6] || null,
+          draw:            isNaN(drawVal) ? null : drawVal,
+          jockey:          cells[10] || null,
+          odds:            cells[12] || null,
+          weight:          isNaN(weightVal) ? null : weightVal,
+          gear:            cells[17] || null,
+        });
+      });
+      return races;
+    });
+  } finally {
+    await page.close();
+  }
+}
+
 // URL: /zh-hk/local/information/localtrackwork?racedate=DD/MM/YYYY&Racecourse=ST&RaceNo=N
 // Returns { declared: [...], reserves: [...] } each entry has:
 //   horseNo, horseName, trainer, recentForm, barrierTrial, gallop, trotting, swimming, treadmill, aquaWalker, spelling
@@ -2365,4 +2739,168 @@ module.exports = {
   scrapeLocalResults,
   saveLocalResults,
   scrapeRaceCountFromLocalResults,
+  scrapeHorseTrackworkHistory,
+  scrapeHorseRaceHistory,
+  scrapeRaceResults,
+  saveRaceRecords,
+  scrapeFixturesForRange,
+  scrapeEntries,
+  saveEntries,
 };
+
+// ── Entries Scraper ───────────────────────────────────────────────────────
+// Scrapes the HKJC entries page (報名表) for all upcoming meetings.
+// Returns: [{ meeting_date, racecourse, races: [{ race_no, race_class, distance,
+//   track_type, rating_range, group_no, entries: [{ trainer_name, horse_name, horse_note }] }] }]
+async function scrapeEntries() {
+  const page = await newPage();
+  try {
+    await page.goto('https://racing.hkjc.com/zh-hk/local/information/entries', {
+      waitUntil: 'networkidle0', timeout: 30000,
+    });
+    await sleep(2000);
+
+    // Discover all meeting dates from date_title buttons
+    const meetings = await page.evaluate(() => {
+      const dt = document.querySelector('.date_title');
+      if (!dt) return [];
+      return Array.from(dt.querySelectorAll('a')).map(a => ({
+        href: a.href || '',
+        text: a.innerText.trim(),
+        selected: a.classList.contains('blueBtn1'),
+      }));
+    });
+
+    const currentYear = new Date().getFullYear();
+    const allMeetings = [];
+
+    for (const m of meetings) {
+      if (m.selected) {
+        // Parse date from text like "7月1日 - 沙田"
+        const dm = m.text.match(/(\d+)月(\d+)日.*?(沙田|跑馬地)/);
+        if (dm) {
+          allMeetings.push({
+            date: `${currentYear}-${String(dm[1]).padStart(2,'0')}-${String(dm[2]).padStart(2,'0')}`,
+            racecourse: dm[3] === '沙田' ? 'ST' : 'HV',
+          });
+        }
+      } else if (m.href) {
+        const dm = m.href.match(/racedate=(\d{4})\/(\d{2})\/(\d{2})/);
+        const tm = m.text.match(/(沙田|跑馬地)/);
+        if (dm) {
+          allMeetings.push({
+            date: `${dm[1]}-${dm[2]}-${dm[3]}`,
+            racecourse: tm ? (tm[1] === '沙田' ? 'ST' : 'HV') : 'ST',
+          });
+        }
+      }
+    }
+
+    // Parse each meeting
+    const results = [];
+    for (let i = 0; i < allMeetings.length; i++) {
+      const meeting = allMeetings[i];
+      // Navigate to this meeting if not already displayed
+      const dateUrl = meeting.date.replace(/-/g, '/');
+      await page.goto(
+        `https://racing.hkjc.com/zh-hk/local/information/entries?racedate=${dateUrl}`,
+        { waitUntil: 'networkidle0', timeout: 30000 },
+      );
+      await sleep(1500);
+
+      const data = await page.evaluate(() => {
+        const table = document.querySelector('table.col_12');
+        if (!table) return null;
+        const rows = Array.from(table.querySelectorAll('tr'));
+        if (rows.length < 7) return null;
+
+        // Parse race headers from rows 1-5
+        const cellText = (row, col) => {
+          const cells = rows[row]?.querySelectorAll('td');
+          return cells && cells[col] ? cells[col].innerText.trim() : '';
+        };
+        const numRaces = (rows[1]?.querySelectorAll('td').length || 0) - 1;
+        const raceHeaders = [];
+        for (let c = 0; c < numRaces; c++) {
+          const distText = cellText(3, c + 1);
+          raceHeaders.push({
+            race_no: c + 1,
+            race_class: cellText(1, c + 1),
+            rating_range: cellText(2, c + 1),
+            distance: parseInt(distText.replace(/\D/g, '')) || null,
+            group_no: parseInt(cellText(4, c + 1)) || null,
+            track_type: cellText(5, c + 1).includes('草地') ? 'TURF'
+                       : cellText(5, c + 1).includes('全天候') || cellText(5, c + 1).includes('泥地') ? 'AWT' : '',
+          });
+        }
+
+        // Parse trainer entries (rows 6+)
+        const raceEntries = raceHeaders.map(h => ({ ...h, entries: [] }));
+        for (let r = 6; r < rows.length; r++) {
+          const cells = rows[r].querySelectorAll('td');
+          if (cells.length < 2) continue;
+          const trainerName = cells[0].innerText.trim();
+          if (!trainerName) continue;
+
+          for (let c = 1; c < cells.length && c <= numRaces; c++) {
+            const raw = cells[c].innerText.trim();
+            if (!raw) continue;
+            // Split by newline/comma for multiple horses in same cell
+            const horseTexts = raw.split(/\n/).map(s => s.trim()).filter(Boolean);
+            for (const ht of horseTexts) {
+              // Extract trailing note markers: *, +, R数字
+              const noteMatch = ht.match(/\s+([\*\+R\d\s]+)$/);
+              let horseName = ht;
+              let horseNote = '';
+              if (noteMatch) {
+                horseName = ht.slice(0, noteMatch.index).trim();
+                horseNote = noteMatch[1].trim();
+              }
+              raceEntries[c - 1].entries.push({
+                trainer_name: trainerName,
+                horse_name: horseName,
+                horse_note: horseNote,
+              });
+            }
+          }
+        }
+        return { races: raceEntries };
+      });
+
+      if (data) {
+        results.push({ meeting_date: meeting.date, racecourse: meeting.racecourse, ...data });
+      }
+    }
+    return results;
+  } finally {
+    await page.close();
+  }
+}
+
+async function saveEntries(meetings) {
+  let saved = 0;
+  for (const meeting of meetings) {
+    for (const race of meeting.races) {
+      for (const e of race.entries) {
+        try {
+          await pool.query(
+            `INSERT INTO entries
+               (meeting_date, racecourse, race_no, race_class, distance, track_type,
+                rating_range, group_no, trainer_name, horse_name, horse_note)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+             ON CONFLICT (meeting_date, race_no, trainer_name, horse_name) DO UPDATE SET
+               race_class=$4, distance=$5, track_type=$6, rating_range=$7,
+               group_no=$8, horse_note=$11, scrape_date=CURRENT_DATE`,
+            [meeting.meeting_date, meeting.racecourse, race.race_no,
+             race.race_class, race.distance, race.track_type,
+             race.rating_range, race.group_no,
+             e.trainer_name, e.horse_name, e.horse_note]
+          );
+          saved++;
+        } catch (_) {}
+      }
+    }
+  }
+  console.log(`[saveEntries] ${saved} entries saved for ${meetings.length} meetings`);
+  return saved;
+}
