@@ -81,7 +81,6 @@ async function captureYellows(view) {
     { key: 'deep', code: 'D' },
     { key: 'strong', code: 'S' },
     { key: 'white', code: 'W' },
-    { key: 'deepOld', code: 'X' },
   ];
   for (const m of view.rows) {
     const o = m.odds, k0 = m.hk33, sim = m.sim;
@@ -97,16 +96,18 @@ async function captureYellows(view) {
     const rateArr = k ? [k.rateH, k.rateD, k.rateA] : (sim && sim.n >= 30 ? [sim.rateH, sim.rateD, sim.rateA] : null);
     const roiArr = k ? [k.roiH, k.roiD, k.roiA] : (sim && sim.n >= 30 ? [sim.roiH, sim.roiD, sim.roiA] : null);
     for (const c of COLORS) {
-      const hit = m[c.key];
+      let hit = m[c.key];
       if (!hit) continue;
+      // 深綠格：舊計法（壞池 gap≥13pp）優先 — 舊計法繼續累積喺深綠格統計
+      if (c.code === 'D' && m.deepOld) hit = m.deepOld;
       const i = hit.idx;
-      // X（舊法深綠）用壞池 n/rate/roi・其他用 HK33/sim
-      const isX = c.code === 'X';
-      const useN = isX ? (m.bad?.n ?? null) : n;
-      const useRateArr = isX
+      // 舊計法深綠用壞池 n/rate/roi・其他用 HK33/sim
+      const isBad = c.code === 'D' && m.deepOld && hit === m.deepOld;
+      const useN = isBad ? (m.bad?.n ?? null) : n;
+      const useRateArr = isBad
         ? (m.bad && m.bad.n >= 30 ? [m.bad.rateH, m.bad.rateD, m.bad.rateA] : null)
         : rateArr;
-      const useRoiArr = isX
+      const useRoiArr = isBad
         ? (m.bad && m.bad.n >= 30 ? [m.bad.roiH, m.bad.roiD, m.bad.roiA] : null)
         : roiArr;
       const r = await pool.query(
@@ -134,7 +135,7 @@ async function captureYellows(view) {
            roi_a=COALESCE(hda_track.roi_a, EXCLUDED.roi_a)`,
           [m.fb, c.code, m.titanId || null, m.date, m.time, m.home, m.away, hit.side,
           oddsArr[i], sdArr[i], cvArr[i], useN, useRateArr?.[i] ?? null, useRoiArr?.[i] ?? null,
-          m.hk33?.league || m.leagueCn || null, isX ? 'bad' : (m.hk33 ? 'HK33' : 'sim'),
+          m.hk33?.league || m.leagueCn || null, isBad ? 'bad' : (m.hk33 ? 'HK33' : 'sim'),
           // 三邊齊全
           oddsArr[0], oddsArr[1], oddsArr[2],
           sdArr[0], sdArr[1], sdArr[2],
