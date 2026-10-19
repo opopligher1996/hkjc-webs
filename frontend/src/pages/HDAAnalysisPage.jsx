@@ -301,7 +301,7 @@ export default function HDAAnalysisPage() {
                 && eq([vh, vd, va][i], minOddsV) && eq(sdAry[i], minSdV) && eq(cvAry[i], minCvV)
                 && [0, 1, 2].filter(j => j !== i).every(j => expRates[j] != null && rates[j] != null && expRates[j] < rates[j]));
               // 深綠：綠格 + gap ≥13pp
-              const deep = green && [0, 1, 2].some(i =>
+              const deepClient = green && [0, 1, 2].some(i =>
                 expRates[i] != null && rates[i] != null && (expRates[i] - rates[i]) >= 0.13
                 && eq([vh, vd, va][i], minOddsV) && eq(sdAry[i], minSdV) && eq(cvAry[i], minCvV));
               // 白格：三項最低 + 賠率≤2.0 + gap ≤ -5pp（市場睇低）・用後端計好嘅 m.white
@@ -309,7 +309,7 @@ export default function HDAAnalysisPage() {
               // 強綠：綠格 + 賠率≤1.60・用後端計好嘅 m.strong
               const strong = m.strong;
               // 深綠：合併新舊計法（乾淨 deep 或 舊法 deepOld 都算）
-              const deep = m.deep || m.deepOld;
+              const deep = deepClient || m.deep || m.deepOld;
               const rowBg = white ? '#dceefc' : deep ? '#a8d5aa' : strong ? '#c8e8d5' : yellow ? '#fff3cd' : green ? '#d4edda' : (i % 2 ? '#f8fafd' : '#fff');
               const rowBorder = white ? '2px solid #1e7fd6' : deep ? '2px solid #1e7e34' : strong ? '2px solid #2e9e6b' : yellow ? '2px solid #e6b800' : green ? '2px solid #28a745' : 'none';
               return (
