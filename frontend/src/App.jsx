@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import JockeyPage from './pages/JockeyPage';
 import TrainerPage from './pages/TrainerPage';
@@ -17,31 +17,123 @@ import GoalAnalysisPage from './pages/GoalAnalysisPage';
 import HDAAnalysisPage from './pages/HDAAnalysisPage';
 import EntriesPage from './pages/EntriesPage';
 
+const RACING_LINKS = [
+  { to: '/', label: '騎師資料', end: true },
+  { to: '/trainers', label: '練馬師資料' },
+  { to: '/draw', label: '檔位搜尋' },
+  { to: '/racecard', label: '本地排位表' },
+  { to: '/advanced-racecard', label: '高級排位表' },
+  { to: '/overseas-racecard', label: '海外排位表' },
+  { to: '/entries', label: '報名表' },
+  { to: '/horses', label: '馬匹資料' },
+  { to: '/coursetime', label: '跑道標準時間' },
+  { to: '/ai-data', label: '數據庫' },
+  { to: '/pace', label: '步速分析' },
+  { to: '/ai-analysis', label: 'AI 分析' },
+  { to: '/analysis', label: '分析' },
+];
+
+const FOOTBALL_LINKS = [
+  { to: '/corner', label: '分析角球' },
+  { to: '/goals', label: '入球分析' },
+  { to: '/hda', label: '主客和分析' },
+];
+
 export default function App() {
+  const [section, setSection] = useState('racing');
+  const links = section === 'racing' ? RACING_LINKS : FOOTBALL_LINKS;
+  const barColor = section === 'racing' ? '#032169' : '#145a23';
+
   return (
     <BrowserRouter>
       <div className="app">
-        <nav className="nav">
-          <a className="nav-brand" href="/">LEGACY</a>
-          <ul className="nav-links">
-            <li><NavLink to="/" end>騎師資料</NavLink></li>
-            <li><NavLink to="/trainers">練馬師資料</NavLink></li>
-            <li><NavLink to="/draw">檔位搜尋</NavLink></li>
-            <li><NavLink to="/racecard">本地排位表</NavLink></li>
-            <li><NavLink to="/advanced-racecard">高級排位表</NavLink></li>
-            <li><NavLink to="/overseas-racecard">海外排位表</NavLink></li>
-            <li><NavLink to="/entries">報名表</NavLink></li>
-            <li><NavLink to="/horses">馬匹資料</NavLink></li>
-            <li><NavLink to="/coursetime">跑道標準時間</NavLink></li>
-            <li><NavLink to="/ai-data">數據庫</NavLink></li>
-            <li><NavLink to="/pace">步速分析</NavLink></li>
-            <li><NavLink to="/ai-analysis">AI分析</NavLink></li>
-            <li><NavLink to="/analysis">分析</NavLink></li>
-            <li><NavLink to="/corner">分析角球</NavLink></li>
-            <li><NavLink to="/goals">入球分析</NavLink></li>
-            <li><NavLink to="/hda">主客和分析</NavLink></li>
-          </ul>
-        </nav>
+        <header style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+          {/* 上層：品牌 + 分區切換 */}
+          <nav style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0,
+            background: '#0d1b3e',
+            padding: '0 20px',
+            height: 44,
+            minWidth: 'fit-content',
+          }}>
+            <a className="nav-brand" href="/" style={{
+              color: '#fff',
+              fontSize: '1.05rem',
+              fontWeight: 800,
+              textDecoration: 'none',
+              letterSpacing: 2,
+              marginRight: 16,
+              whiteSpace: 'nowrap',
+            }}>LEGACY</a>
+
+            <div style={{ display: 'flex', gap: 2, height: '100%' }}>
+              <button
+                onClick={() => setSection('racing')}
+                style={{
+                  padding: '0 18px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: section === 'racing' ? '#032169' : 'transparent',
+                  color: section === 'racing' ? '#fff' : 'rgba(255,255,255,0.5)',
+                  borderBottom: section === 'racing' ? '2px solid #5b9bd5' : '2px solid transparent',
+                  transition: 'all 0.15s',
+                }}
+              >🐎 賽馬資訊</button>
+              <button
+                onClick={() => setSection('football')}
+                style={{
+                  padding: '0 18px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: section === 'football' ? '#145a23' : 'transparent',
+                  color: section === 'football' ? '#fff' : 'rgba(255,255,255,0.5)',
+                  borderBottom: section === 'football' ? '2px solid #4caf50' : '2px solid transparent',
+                  transition: 'all 0.15s',
+                }}
+              >⚽ 足球資訊</button>
+            </div>
+          </nav>
+
+          {/* 下層：功能連結 */}
+          <nav style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: barColor,
+            padding: '0 12px',
+            height: 38,
+            minWidth: 'fit-content',
+            overflowX: 'auto',
+          }}>
+            {links.map(l => (
+              <NavLink
+                key={l.to}
+                to={l.to}
+                end={l.end}
+                onClick={() => setSection(/^\/(corner|goals|hda)/.test(l.to) ? 'football' : 'racing')}
+                style={({ isActive }) => ({
+                  color: isActive ? '#fff' : 'rgba(255,255,255,0.65)',
+                  textDecoration: 'none',
+                  padding: '0 14px',
+                  fontSize: '0.82rem',
+                  fontWeight: isActive ? 700 : 400,
+                  height: 38,
+                  lineHeight: '38px',
+                  whiteSpace: 'nowrap',
+                  borderRadius: 0,
+                  background: isActive ? 'rgba(255,255,255,0.12)' : 'transparent',
+                  borderBottom: isActive ? '2px solid #fff' : '2px solid transparent',
+                  transition: 'all 0.15s',
+                })}
+              >{l.label}</NavLink>
+            ))}
+          </nav>
+        </header>
 
         <main className="main-content">
           <Routes>
@@ -56,16 +148,16 @@ export default function App() {
             <Route path="/coursetime" element={<CourseTimePage />} />
             <Route path="/ai-data" element={<AiDataPage />} />
             <Route path="/pace" element={<PaceAnalysisPage />} />
-          <Route path="/ai-analysis" element={<AiAnalysisPage />} />
+            <Route path="/ai-analysis" element={<AiAnalysisPage />} />
             <Route path="/analysis" element={<AnalysisPage />} />
-          <Route path="/corner" element={<CornerAnalysisPage />} />
-          <Route path="/goals" element={<GoalAnalysisPage />} />
-          <Route path="/hda" element={<HDAAnalysisPage />} />
+            <Route path="/corner" element={<CornerAnalysisPage />} />
+            <Route path="/goals" element={<GoalAnalysisPage />} />
+            <Route path="/hda" element={<HDAAnalysisPage />} />
           </Routes>
         </main>
 
-        <footer style={{ background: '#032169', color: 'rgba(255,255,255,0.7)', padding: '12px 24px', textAlign: 'center', fontSize: '0.8rem' }}>
-          數據來源：香港賽馬會 racing.hkjc.com
+        <footer style={{ background: '#0d1b3e', color: 'rgba(255,255,255,0.5)', padding: '10px 24px', textAlign: 'center', fontSize: '0.75rem' }}>
+          數據來源：香港賽馬會 racing.hkjc.com・titan007・HK33
         </footer>
       </div>
     </BrowserRouter>
