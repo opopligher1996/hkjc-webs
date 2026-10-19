@@ -83,20 +83,24 @@ async function buildUpcoming(force = false) {
     scrapeHkjcMatches(),
     scrapeSchedule(10, { all: true }),
   ]);
-  // titan 按 date+time 分組
-  const bySlot = new Map();
+  // titan 按 date 分組（時間用 ±10 分鐘容差匹配）
+  const byDate = new Map();
   for (const t of titan) {
     if (!t.titanId) continue;
-    const key = `${t.date}|${t.time}`;
-    if (!bySlot.has(key)) bySlot.set(key, []);
-    bySlot.get(key).push(t);
+    if (!byDate.has(t.date)) byDate.set(t.date, []);
+    byDate.get(t.date).push(t);
   }
+  const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
   const rows = [];
   let unmatched = 0;
   for (const h of hkjc) {
-    const slot = bySlot.get(`${h.date}|${h.time}`) || [];
+    const dayMatches = byDate.get(h.date) || [];
+    const hMin = toMin(h.time);
+    // 同日 ±10 分鐘 + 名稱相似度
     let best = null, bestSim = 0;
-    for (const t of slot) {
+    for (const t of dayMatches) {
+      const tMin = toMin(t.time);
+      if (Math.abs(tMin - hMin) > 10) continue;
       const sim = (nameSim(h.home, t.homeCn) + nameSim(h.away, t.awayCn)) / 2;
       if (sim > bestSim) { bestSim = sim; best = t; }
     }
