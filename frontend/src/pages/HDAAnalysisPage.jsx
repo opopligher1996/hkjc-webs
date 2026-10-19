@@ -206,7 +206,7 @@ export default function HDAAnalysisPage() {
         {ystats ? (
           <>
             <div className="ai-muted" style={{ fontSize: '0.72rem', marginTop: 4 }}>
-              🟨 黃 = 三項最低+比率≥50%+回報&lt;0%+場數≥30｜🟩 綠 = 三項最低+預計&gt;歷史+對方兩邊預計&lt;歷史+回報&lt;-10%+場數≥30｜🟢 深綠 = 綠格 + gap≥13pp（gap用舊基準池計・舊計法繼續累積統計）｜💚 強綠 = 綠格 + 賠率≤1.60（回測70%開出）｜⚪ 白 = 三項最低+賠率≤2.0+預計比歷史低5pp+（市場睇低=價值熱門）+場數&gt;30｜🟪 紫 = 主≤1.6+客收盤受捧3%+→買客（完場後按收盤價入庫）
+              🟨 黃 = 三項最低+比率≥50%+回報&lt;0%+場數≥30｜🟩 綠 = 三項最低+預計&gt;歷史+對方兩邊預計&lt;歷史+回報&lt;-10%+場數≥30｜🟢 深綠 = 綠格 + gap≥13pp（gap用舊基準池計・舊計法繼續累積統計）｜💚 強綠 = 綠格 + 賠率≤1.60｜⚪ 白 = 三項最低+賠率≤2.0+預計比歷史低5pp+（市場睇低=價值熱門）+場數&gt;30｜🟪 紫 = 主≤1.6+客收盤受捧3%+→買客（完場後按收盤價入庫）
               {ystats.byBench && Object.keys(ystats.byBench).length > 0 && (
                 <span>｜開出率分組：{Object.entries(ystats.byBench).map(([k, v]) =>
                   `${{ 'Y:HK33': '黃·HK33', 'Y:sim': '黃·sim', 'G:HK33': '綠·HK33', 'G:sim': '綠·sim' }[k] || k} ${(v.hitRate * 100).toFixed(0)}%(${v.n})`).join('・')}</span>
@@ -214,9 +214,9 @@ export default function HDAAnalysisPage() {
             </div>
             <TrackTable color="Y" name="🟨 黃格賽事" bg="#fffbe6" border="#e6d47e" stats={ystats.byColor?.Y} matches={ystats.matches.filter(m => m.color === 'Y')} onAhEdit={setAhEdit} simpleRoiFilter />
             <TrackTable color="G" name="🟩 綠格賽事" bg="#f0f9f1" border="#b7dfc0" stats={ystats.byColor?.G} matches={ystats.matches.filter(m => m.color === 'G')} fade onAhEdit={setAhEdit} />
-            <TrackTable color="D" name="🟢 深綠格賽事（原裝6條件・gap用舊基準池計 — 舊計法繼續累積）" bg="#dcefdd" border="#5cb85c" stats={ystats.byColor?.D} matches={ystats.matches.filter(m => m.color === 'D')} fade gapFilter onAhEdit={setAhEdit} qualityMarks />
-            <TrackTable color="S" name="💚 強綠格賽事（綠格+賠率≤1.60・回測70%開出）" bg="#e0f2e9" border="#3fa376" stats={ystats.byColor?.S} matches={ystats.matches.filter(m => m.color === 'S')} fade onAhEdit={setAhEdit} />
-            <TrackTable color="W" name="⚪ 白格賽事（價值熱門・市場睇低5pp+）" bg="#e8f2fc" border="#5a9fd8" stats={ystats.byColor?.W} matches={ystats.matches.filter(m => m.color === 'W')} fade onAhEdit={setAhEdit} />
+            <TrackTable color="D" name="🟢 深綠格賽事" bg="#dcefdd" border="#5cb85c" stats={ystats.byColor?.D} matches={ystats.matches.filter(m => m.color === 'D')} fade gapFilter onAhEdit={setAhEdit} qualityMarks />
+            <TrackTable color="S" name="💚 強綠格賽事" bg="#e0f2e9" border="#3fa376" stats={ystats.byColor?.S} matches={ystats.matches.filter(m => m.color === 'S')} fade onAhEdit={setAhEdit} />
+            <TrackTable color="W" name="⚪ 白格賽事" bg="#e8f2fc" border="#5a9fd8" stats={ystats.byColor?.W} matches={ystats.matches.filter(m => m.color === 'W')} fade onAhEdit={setAhEdit} />
             <TrackTable color="P" name="🟪 紫格賽事（主≤1.6+客收盤受捧3%+ → 買客）" bg="#f3eefa" border="#9b7fd4" stats={ystats.byColor?.P} matches={ystats.matches.filter(m => m.color === 'P')} onAhEdit={setAhEdit} />
             <BacktestTable />
             <GreenRegression />
@@ -766,25 +766,13 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
     total: filtered.length, settled: settled.length, hits,
     hitRate: settled.length ? hits / settled.length : null,
   };
-  const sub = bench => {
-    const f = filtered.filter(y => y.bench === bench);
-    const st = f.filter(y => y.result);
-    const h = st.filter(y => y.result === y.side).length;
-    return { n: st.length, hitRate: st.length ? h / st.length : null };
-  };
-  const sHK = sub('HK33'), sSim = sub('sim');
   const selStyle = { padding: '3px 6px', borderRadius: 4, border: '1px solid #ccd5e0', fontSize: '0.72rem', background: '#fff' };
   return (
     <details style={{ marginTop: 10, background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: '8px 10px' }}>
       <summary style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, listStyle: 'none' }}>
         <b style={{ fontSize: '0.9rem' }}>{name}（{filtered.length} 場）</b>
-        <span style={{ fontSize: '0.8rem', color: '#445' }}>
+          <span style={{ fontSize: '0.8rem', color: '#445' }}>
           已完 <b>{s.settled}</b>・開出 <b>{s.hits}</b>｜開出率 <b style={{ color: s.hitRate >= 0.5 ? '#155724' : '#c0392b' }}>{s.hitRate != null ? `${(s.hitRate * 100).toFixed(1)}%` : '—'}</b>
-          <span style={{ fontSize: '0.7rem', color: '#889', marginLeft: 6 }}>
-            <Masked>
-              （HK33: {sHK.n ? `${(sHK.hitRate * 100).toFixed(0)}%(${sHK.n})` : '—'}｜007自計: {sSim.n ? `${(sSim.hitRate * 100).toFixed(0)}%(${sSim.n})` : '—'}）
-            </Masked>
-          </span>
            <span className="ai-muted" style={{ fontSize: '0.7rem', marginLeft: 6 }}>▸ 撳開睇逐場</span>
            <button
              onClick={e => { e.stopPropagation(); setHideNums(!hideNums); }}
