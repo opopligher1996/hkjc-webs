@@ -10,7 +10,7 @@ const roiPct = v => v == null ? '—' : `${v > 0 ? '+' : ''}${(v * 100).toFixed(
 
 const GREEN = { background: '#d4edda', color: '#155724', fontWeight: 800, borderRadius: 3, padding: '0 3px' };
 
-// 初盤格：賠率 + SD + CV 疊三行（HK33 式）+ 綠格（同場最低）
+// 初盤格：賠率 + SD + CV 疊三行 + 綠格（同場最低）
 function OddsStack({ odds, sd, cv, label, hlOdds, hlSd, hlCv }) {
   return (
     <td style={{ padding: '5px 8px', borderRight: '1px solid #e3e9f2', background: '#fbfcfe' }}>
@@ -209,7 +209,7 @@ export default function HDAAnalysisPage() {
               🟨 黃 = 三項最低+比率≥50%+回報&lt;0%+場數≥30｜🟩 綠 = 三項最低+預計&gt;歷史+對方兩邊預計&lt;歷史+回報&lt;-10%+場數≥30｜🟢 深綠 = 綠格 + gap≥13pp（gap用舊基準池計・舊計法繼續累積統計）｜💚 強綠 = 綠格 + 賠率≤1.60｜🔵 藍 = 三項最低+賠率≤2.0+預計比歷史低5pp+（市場睇低=價值熱門）+場數&gt;30｜🟪 紫 = 主≤1.6+客收盤受捧3%+→買客（完場後按收盤價入庫）
               {ystats.byBench && Object.keys(ystats.byBench).length > 0 && (
                 <span>｜開出率分組：{Object.entries(ystats.byBench).map(([k, v]) =>
-                  `${{ 'Y:HK33': '黃·HK33', 'Y:sim': '黃·sim', 'G:HK33': '綠·HK33', 'G:sim': '綠·sim' }[k] || k} ${(v.hitRate * 100).toFixed(0)}%(${v.n})`).join('・')}</span>
+                  `${{ 'Y:HK33': '黃·線上', 'Y:sim': '黃·自計', 'G:HK33': '綠·線上', 'G:sim': '綠·自計' }[k] || k} ${(v.hitRate * 100).toFixed(0)}%(${v.n})`).join('・')}</span>
               )}
             </div>
             <TrackTable color="Y" name="🟨 黃格賽事" bg="#fffbe6" border="#e6d47e" stats={ystats.byColor?.Y} matches={ystats.matches.filter(m => m.color === 'Y')} onAhEdit={setAhEdit} simpleRoiFilter />
@@ -256,10 +256,10 @@ export default function HDAAnalysisPage() {
             {matches.map((m, i) => {
               const d = new Date(m.date + 'T12:00:00');
               const o = m.odds;
-              // HK33 數據優先（有齊 場數/開出比率/回報率）；否則用自己嘅 sim
-              // HK33 基準 n≥30 先有效（同後端捕捉邏輯一致）
+              // 線上數據優先（有齊 場數/開出比率/回報率）；否則用自己嘅 sim
+              // 線上基準 n≥30 先有效（同後端捕捉邏輯一致）
               const k = m.hk33 && m.hk33.n >= 30 ? m.hk33 : null;
-              // 顯示用嘅三個來源值（odds 優先，fallback HK33）
+              // 顯示用嘅三個來源值（odds 優先，fallback 線上基準）
               const vh = o ? +o.open_h : k?.h, vd = o ? +o.open_d : k?.d, va = o ? +o.open_a : k?.a;
               const sdAry = o ? [+o.sd_h, +o.sd_d, +o.sd_a] : (k ? [k.sdH, k.sdD, k.sdA] : null);
               const cvAry = o ? [+o.cv_h, +o.cv_d, +o.cv_a] : (k ? [k.cvH, k.cvD, k.cvA] : null);
@@ -353,7 +353,7 @@ export default function HDAAnalysisPage() {
                   )}
                   <td style={{ padding: '6px 8px', textAlign: 'center', fontFamily: 'monospace' }}>
                     <span style={n != null && n >= 30 ? GREEN : { fontWeight: 700 }}>{n != null ? n : '—'}</span>
-                    {k && <span title="HK33 數據" style={{ fontSize: '0.6rem', color: '#e67e22', marginLeft: 3 }}>H</span>}
+                    {k && <span title="線上基準數據" style={{ fontSize: '0.6rem', color: '#e67e22', marginLeft: 3 }}>H</span>}
                   </td>
                   {hasStats ? (
                     <>
@@ -377,7 +377,7 @@ export default function HDAAnalysisPage() {
         🟩 綠格：同場賠率最低・SD 最低・CV 最低・場數 ≥30・開出比率最高・回報率最高（全部 ≤0 唔標）。
         🟨 全行黃：某一邊賠率+SD+CV 三項最低 ✓ 開出 ≥50% ✓ 回報 &lt;0% ✓ 場數 ≥30 ✓。
         🟢 全行淺綠：某一邊賠率/SD/CV 三項全場最低 ✓ 預計開出 &gt; 歷史開出 ✓ 對方兩邊預計開出 &lt; 歷史開出 ✓ 回報 &lt;-10% ✓ 場數 ≥30 ✓。
-        預計開出 = (1/賠率) ÷ Σ(1/三項賠率)。回報率 = 開出比率 × 初盤賠率 − 1。H 標記 = HK33 數據。已爬取數據不會重新抓取或取代。
+        預計開出 = (1/賠率) ÷ Σ(1/三項賠率)。回報率 = 開出比率 × 初盤賠率 − 1。H 標記 = 線上基準數據。已爬取數據不會重新抓取或取代。
       </div>
       </>)}
 
@@ -1014,7 +1014,7 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                     </table>
                     </div>
                     <div className="ai-muted" style={{ fontSize: '0.68rem', marginTop: 6 }}>
-                      場數：{y.n ?? '—'}・基準：{y.bench === 'HK33' ? 'HK33' : '007自計'}（{y.bench_src === 'HK33' ? 'HK33' : 'sim'}）・追蹤邊：{{ H: '主', D: '和', A: '客' }[y.side]}
+                      場數：{y.n ?? '—'}・基準：{y.bench === 'HK33' ? '線上' : '007自計'}（{y.bench_src === 'HK33' ? '線上' : 'sim'}）・追蹤邊：{{ H: '主', D: '和', A: '客' }[y.side]}
                       {y.ah_line && `｜亞洲盤：[${y.ah_line}] @${y.ah_odds ?? '—'} → 讓球${y.ah_result || '待計'}`}
                     </div>
                   </td>
@@ -1113,7 +1113,7 @@ function GreenRegression() {
       </span>
       {d.backtest && (
         <div style={{ marginTop: 8, background: '#fff', border: '1px dashed #d5c9ec', borderRadius: 6, padding: 8 }}>
-          <b style={{ fontSize: '0.8rem' }}>📜 歷史回測（{d.backtest.total} 場・007自計基準 — 與 live HK33 基準唔同源，僅供參考）</b>
+          <b style={{ fontSize: '0.8rem' }}>📜 歷史回測（{d.backtest.total} 場・007自計基準 — 與 live 線上基準唔同源，僅供參考）</b>
           <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap', fontSize: '0.78rem' }}>
             {[['有回歸', d.backtest.regressed, '#fdecea'], ['冇回歸', d.backtest.noRegressed, '#d4edda']].map(([label, s, bg]) => (
               <span key={label} style={{ padding: '3px 10px', borderRadius: 6, background: bg }}>
