@@ -37,6 +37,64 @@ export default function EntriesPage() {
     }
   }
 
+  // ── 一鍵更新：報名表 → 排位表 → 全日晨操 → 分段時間 → 馬匹sync ──
+  const [oneKey, setOneKey] = useState(false);
+  const [log, setLog] = useState([]);
+  const addLog = msg => setLog(l => [...l, msg]);
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  async function pollUntil(url, stillRunning, label, maxMin = 10) {
+    const deadline = Date.now() + maxMin * 60000;
+    while (Date.now() < deadline) {
+      await sleep(5000);
+      try {
+        const r = await api.get(url, { timeout: 10000 });
+        if (!stillRunning(r.data)) { addLog(`✓ ${label} 完成`); return true; }
+      } catch (_) {}
+    }
+    addLog(`⚠ ${label} 逾時，繼續下一步`);
+    return false;
+  }
+
+  async function handleOneKey() {
+    setOneKey(true); setLog([]);
+    try {
+      addLog('① 更新報名表…');
+      await api.post('/scrape/entries', {}, { timeout: 120000 });
+      const r = await api.get(selectedDate ? `/entries?date=${selectedDate}` : '/entries');
+      setData(r.data);
+      if (r.data?.meeting_date) setSelectedDate(r.data.meeting_date);
+      const date = r.data?.meeting_date || selectedDate;
+      addLog(`✓ 報名表完成${date ? `（${date}）` : ''}`);
+
+      addLog('② 抓取排位表…');
+      try { await api.post('/scrape/racecard', {}, { timeout: 10000 }); }
+      catch (e) { addLog('⚠ ' + (e.response?.data?.message || e.message)); }
+      await pollUntil('/scrape/status', s => s.racecard, '排位表', 6);
+
+      if (date) {
+        addLog('③ 更新全日晨操…');
+        try { await api.post('/advanced/trackwork', { date }, { timeout: 15000 }); }
+        catch (e) { addLog('⚠ ' + (e.response?.data?.message || e.response?.data?.error || e.message)); }
+        await pollUntil('/advanced/trackwork/status', s => s.active, '晨操', 20);
+
+        addLog('④ 補抓分段時間…');
+        try { await api.post('/advanced/sectional-backfill', { date }, { timeout: 15000 }); }
+        catch (e) { addLog('⚠ ' + (e.response?.data?.message || e.response?.data?.error || e.message)); }
+        await pollUntil('/advanced/sectional-backfill/status', s => s.active, '分段時間', 20);
+      }
+
+      addLog('⑤ 全量sync馬匹（背景執行）…');
+      try { await api.post('/scrape/horses', {}, { timeout: 10000 }); }
+      catch (e) { addLog('⚠ ' + (e.response?.data?.message || e.message)); }
+      addLog('🎯 一鍵更新完成（馬匹sync繼續背景跑）');
+    } catch (e) {
+      addLog('❌ ' + (e.response?.data?.error || e.message));
+    } finally {
+      setOneKey(false);
+    }
+  }
+
   const races = data?.races || [];
   const dates = data?.available_dates || [];
 
@@ -44,9 +102,20 @@ export default function EntriesPage() {
     <div>
       <h1 className="page-title">報名表</h1>
 
-      <div className="scrape-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-        <button className="btn btn-success" onClick={handleScrape} disabled={scraping}>
+      <div className="scrape-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+        <button className="btn btn-success" onClick={handleScrape} disabled={scraping || oneKey}>
           {scraping ? '抓取中...' : '更新報名表'}
+        </button>
+        <button
+          onClick={handleOneKey}
+          disabled={oneKey || scraping}
+          style={{
+            padding: '6px 14px', border: 'none', borderRadius: 4, cursor: 'pointer',
+            background: oneKey ? '#7a8bb0' : '#b8860b', color: '#fff',
+            fontWeight: 700, fontSize: '0.85rem',
+          }}
+        >
+          {oneKey ? '⏳ 執行中…' : '⚡ 一鍵更新'}
         </button>
         {dates.length > 0 && (
           <div className="filter-group" style={{ marginBottom: 0 }}>
@@ -64,6 +133,16 @@ export default function EntriesPage() {
           <span style={{ fontSize: '0.85em', color: '#888' }}>最後更新：{data.scrape_date}</span>
         )}
       </div>
+
+      {log.length > 0 && (
+        <div style={{
+          background: '#0d1b3e', color: '#cfe0ff', borderRadius: 8,
+          padding: '10px 14px', marginBottom: 12, fontFamily: 'monospace',
+          fontSize: '0.78rem', maxHeight: 180, overflowY: 'auto', whiteSpace: 'pre-wrap',
+        }}>
+          {log.map((l, i) => <div key={i}>{l}</div>)}
+        </div>
+      )}
 
       {loading && <div className="loading">載入中...</div>}
       {err && <div className="error">{err}</div>}

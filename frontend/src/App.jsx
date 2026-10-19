@@ -5,7 +5,6 @@ import TrainerPage from './pages/TrainerPage';
 import DrawPage from './pages/DrawPage';
 import RacecardPage from './pages/RacecardPage';
 import AdvancedRacecardPage from './pages/AdvancedRacecardPage';
-import OverseasRacecardPage from './pages/OverseasRacecardPage';
 import HorsePage from './pages/HorsePage';
 import CourseTimePage from './pages/CourseTimePage';
 import AiDataPage from './pages/AiDataPage';
@@ -20,16 +19,15 @@ import LoginPage from './pages/LoginPage';
 import { getMe } from './api';
 
 const RACING_LINKS = [
+  { to: '/entries', label: '報名表' },
+  { to: '/racecard', label: '本地排位表' },
+  { to: '/advanced-racecard', label: '高級排位表' },
+  { to: '/ai-data', label: '數據庫' },
   { to: '/', label: '騎師資料', end: true },
   { to: '/trainers', label: '練馬師資料' },
   { to: '/draw', label: '檔位搜尋' },
-  { to: '/racecard', label: '本地排位表' },
-  { to: '/advanced-racecard', label: '高級排位表' },
-  { to: '/overseas-racecard', label: '海外排位表' },
-  { to: '/entries', label: '報名表' },
   { to: '/horses', label: '馬匹資料' },
   { to: '/coursetime', label: '跑道標準時間' },
-  { to: '/ai-data', label: '數據庫' },
   { to: '/pace', label: '步速分析' },
   { to: '/ai-analysis', label: 'AI 分析' },
   { to: '/analysis', label: '分析' },
@@ -174,7 +172,6 @@ export default function App() {
             <Route path="/draw" element={<DrawPage />} />
             <Route path="/racecard" element={<RacecardPage />} />
             <Route path="/advanced-racecard" element={<AdvancedRacecardPage />} />
-            <Route path="/overseas-racecard" element={<OverseasRacecardPage />} />
             <Route path="/entries" element={<EntriesPage />} />
             <Route path="/horses" element={<HorsePage />} />
             <Route path="/coursetime" element={<CourseTimePage />} />
