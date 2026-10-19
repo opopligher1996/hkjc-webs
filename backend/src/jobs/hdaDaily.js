@@ -81,6 +81,7 @@ async function captureYellows(view) {
     { key: 'deep', code: 'D' },
     { key: 'strong', code: 'S' },
     { key: 'white', code: 'W' },
+    { key: 'deepOld', code: 'X' },
   ];
   for (const m of view.rows) {
     const o = m.odds, k0 = m.hk33, sim = m.sim;
@@ -99,6 +100,15 @@ async function captureYellows(view) {
       const hit = m[c.key];
       if (!hit) continue;
       const i = hit.idx;
+      // X（舊法深綠）用壞池 n/rate/roi・其他用 HK33/sim
+      const isX = c.code === 'X';
+      const useN = isX ? (m.bad?.n ?? null) : n;
+      const useRateArr = isX
+        ? (m.bad && m.bad.n >= 30 ? [m.bad.rateH, m.bad.rateD, m.bad.rateA] : null)
+        : rateArr;
+      const useRoiArr = isX
+        ? (m.bad && m.bad.n >= 30 ? [m.bad.roiH, m.bad.roiD, m.bad.roiA] : null)
+        : roiArr;
       const r = await pool.query(
         `INSERT INTO hda_track (fb, color, titan_id, match_date, kickoff, home, away, side,
            odds, sd, cv, n, rate, roi, league, bench_src,
@@ -122,15 +132,15 @@ async function captureYellows(view) {
            roi_h=COALESCE(hda_track.roi_h, EXCLUDED.roi_h),
            roi_d=COALESCE(hda_track.roi_d, EXCLUDED.roi_d),
            roi_a=COALESCE(hda_track.roi_a, EXCLUDED.roi_a)`,
-        [m.fb, c.code, m.titanId || null, m.date, m.time, m.home, m.away, hit.side,
-         oddsArr[i], sdArr[i], cvArr[i], n, rateArr?.[i] ?? null, roiArr?.[i] ?? null,
-         m.hk33?.league || m.leagueCn || null, m.hk33 ? 'HK33' : 'sim',
-         // 三邊齊全
-         oddsArr[0], oddsArr[1], oddsArr[2],
-         sdArr[0], sdArr[1], sdArr[2],
-         cvArr[0], cvArr[1], cvArr[2],
-         rateArr?.[0] ?? null, rateArr?.[1] ?? null, rateArr?.[2] ?? null,
-         roiArr?.[0] ?? null, roiArr?.[1] ?? null, roiArr?.[2] ?? null]);
+          [m.fb, c.code, m.titanId || null, m.date, m.time, m.home, m.away, hit.side,
+          oddsArr[i], sdArr[i], cvArr[i], useN, useRateArr?.[i] ?? null, useRoiArr?.[i] ?? null,
+          m.hk33?.league || m.leagueCn || null, isX ? 'bad' : (m.hk33 ? 'HK33' : 'sim'),
+          // 三邊齊全
+          oddsArr[0], oddsArr[1], oddsArr[2],
+          sdArr[0], sdArr[1], sdArr[2],
+          cvArr[0], cvArr[1], cvArr[2],
+          useRateArr?.[0] ?? null, useRateArr?.[1] ?? null, useRateArr?.[2] ?? null,
+          useRoiArr?.[0] ?? null, useRoiArr?.[1] ?? null, useRoiArr?.[2] ?? null]);
       added += r.rowCount;
        // 深綠格回歸實驗（獨立表・只記錄深綠格 = gap≥13pp）
        if (c.code === 'D') {

@@ -285,6 +285,52 @@ function detectGreenBlue(vh, vd, va, sdAry, cvAry, rates, rois, n) {
   return { green, blue: null, deep, strong };
 }
 
+// ── 舊法深綠（壞基準池）：複製舊時代 gap 計算環境驗證 83.9% ──
+// 純壞池（HKJC 壞波膽時期）— 唔溝真實賽果，保持「錯計法」原貌
+async function similarStatsBad(h, d, a, tol = 0.10) {
+  const { rows } = await pool.query(
+    `SELECT b.bad_result result, o.open_h h, o.open_d d, o.open_a a
+     FROM had_odds_bad b JOIN had_odds o ON o.titan_id = b.titan_id
+     WHERE b.bad_result IS NOT NULL AND o.open_h IS NOT NULL`);
+  let n = 0, cH = 0, cD = 0, cA = 0, pH = 0, pD = 0, pA = 0;
+  for (const r of rows) {
+    if (Math.abs(+r.h - h) > h * tol) continue;
+    if (Math.abs(+r.d - d) > d * tol) continue;
+    if (Math.abs(+r.a - a) > a * tol) continue;
+    n++;
+    if (r.result === 'H') { cH++; pH += +r.h - 1; } else pH -= 1;
+    if (r.result === 'D') { cD++; pD += +r.d - 1; } else pD -= 1;
+    if (r.result === 'A') { cA++; pA += +r.a - 1; } else pA -= 1;
+  }
+  if (!n) return { n: 0 };
+  const rateH = cH / n, rateD = cD / n, rateA = cA / n;
+  return { n, rateH, rateD, rateA, roiH: pH / n, roiD: pD / n, roiA: pA / n };
+}
+
+// 舊法深綠檢測：原裝 6 條件，但 rate/roi 用壞池
+function detectDeepOld(vh, vd, va, sdAry, cvAry, rates, rois, n) {
+  if (rates == null || rates.some(r => r == null)) return null;
+  if (n == null || n < 30) return null;
+  if (!sdAry || sdAry.some(x => x == null || x === 0)) return null;
+  if (!cvAry || cvAry.some(x => x == null || x === 0)) return null;
+  const eq = (a, b) => a != null && b != null && Math.abs(a - b) < 1e-9;
+  const odds = [vh, vd, va];
+  const inv = odds.map(x => 1 / x);
+  const s = inv[0] + inv[1] + inv[2];
+  const exp = inv.map(x => x / s);
+  const minS = Math.min(...sdAry), minC = Math.min(...cvAry);
+  const minO = Math.min(...odds);
+  for (let i = 0; i < 3; i++) {
+    if (exp[i] > rates[i] && rois[i] != null && rois[i] < -0.10
+      && eq(odds[i], minO) && eq(sdAry[i], minS) && eq(cvAry[i], minC)
+      && [0, 1, 2].filter(j => j !== i).every(j => exp[j] < rates[j])
+      && exp[i] - rates[i] >= 0.13) {
+      return { idx: i, side: 'HDA'[i], exp: exp[i], rate: rates[i] };
+    }
+  }
+  return null;
+}
+
 // 白格（價值熱門）檢測：賠+SD+CV 三項全場最低（合一）+ 賠率 ≤2.0
 //   + gap（預計−歷史）≤ -5pp（市場定價低過歷史 = 價值）+ n>30
 //   乾淨數據回測：n=196・開出 70.9%（預計 62.9%）・ROI +4.3%
@@ -353,4 +399,4 @@ async function getMergedView(tol = 0.10) {
   return { rows: out, at: up.at };
 }
 
-module.exports = { buildUpcoming, runBatch, batchState, s2t, nameSim, similarStats, scrapeOne, getMergedView, detectYellow, detectGreenBlue, detectWhite, refreshAliasMap, learnAlias };
+module.exports = { buildUpcoming, runBatch, batchState, s2t, nameSim, similarStats, similarStatsBad, scrapeOne, getMergedView, detectYellow, detectGreenBlue, detectWhite, detectDeepOld, refreshAliasMap, learnAlias };

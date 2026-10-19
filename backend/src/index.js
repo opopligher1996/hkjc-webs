@@ -3723,14 +3723,23 @@ app.get('/api/hda/upcoming', async (req, res) => {
       const n = k ? k.n : (useSim && sim ? sim.n : null);
       const rates = k ? [k.rateH, k.rateD, k.rateA] : (useSim && sim ? [sim.rateH, sim.rateD, sim.rateA] : null);
       const rois = k ? [k.roiH, k.roiD, k.roiA] : (useSim && sim ? [sim.roiH, sim.roiD, sim.roiA] : null);
-      let yellow = null, green = null, deep = null, white = null, strong = null;
+      let yellow = null, green = null, deep = null, white = null, strong = null, deepOld = null, bad = null;
       if (vh != null && sdAry && n != null && rates) {
         yellow = hdaService.detectYellow(vh, vd, va, sdAry, cvAry, n, rates, rois);
         const gb = hdaService.detectGreenBlue(vh, vd, va, sdAry, cvAry, rates, rois, n);
         green = gb.green; deep = gb.deep; strong = gb.strong;
         white = hdaService.detectWhite(vh, vd, va, sdAry, cvAry, rates, n);
       }
-      matches.push({ ...r, odds: o, sim, hk33: k, yellow, green, deep, strong, white });
+      // 舊法深綠：壞基準池 6 條件（只行 titan odds 場）
+      if (vh != null && sdAry && o?.open_h) {
+        try {
+          bad = await hdaService.similarStatsBad(+o.open_h, +o.open_d, +o.open_a, tol);
+          if (bad.n >= 30) {
+            deepOld = hdaService.detectDeepOld(vh, vd, va, sdAry, cvAry, [bad.rateH, bad.rateD, bad.rateA], [bad.roiH, bad.roiD, bad.roiA], bad.n);
+          }
+        } catch (_) {}
+      }
+      matches.push({ ...r, odds: o, sim, hk33: k, yellow, green, deep, strong, white, deepOld, bad: bad?.n ? { n: bad.n, rateH: bad.rateH, rateD: bad.rateD, rateA: bad.rateA, roiH: bad.roiH, roiD: bad.roiD, roiA: bad.roiA } : null });
     }
     // 自動捕捉新嘅黃/綠入庫（summary 即時更新；已存在唔會重寫）
     try { await hdaDaily.captureYellows({ rows: matches }); } catch (_) {}
