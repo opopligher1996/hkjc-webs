@@ -16,6 +16,8 @@ import CornerAnalysisPage from './pages/CornerAnalysisPage';
 import GoalAnalysisPage from './pages/GoalAnalysisPage';
 import HDAAnalysisPage from './pages/HDAAnalysisPage';
 import EntriesPage from './pages/EntriesPage';
+import LoginPage from './pages/LoginPage';
+import { getMe } from './api';
 
 const RACING_LINKS = [
   { to: '/', label: '騎師資料', end: true },
@@ -41,8 +43,24 @@ const FOOTBALL_LINKS = [
 
 export default function App() {
   const [section, setSection] = useState('racing');
+  // 帳號系統：undefined = 驗證中・null = 未登入
+  const [user, setUser] = useState(undefined);
+  React.useEffect(() => {
+    const t = localStorage.getItem('auth_token');
+    if (!t) return setUser(null);
+    getMe().then(r => setUser(r.user)).catch(() => setUser(null));
+  }, []);
+  const logout = () => {
+    localStorage.removeItem('auth_token');
+    setUser(null);
+  };
   const links = section === 'racing' ? RACING_LINKS : FOOTBALL_LINKS;
   const barColor = section === 'racing' ? '#032169' : '#145a23';
+
+  if (user === undefined) {
+    return <div style={{ minHeight: '100vh', background: '#032169', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem' }}>驗證中…</div>;
+  }
+  if (!user) return <LoginPage onLogin={setUser} />;
 
   return (
     <BrowserRouter>
@@ -97,6 +115,20 @@ export default function App() {
                   transition: 'all 0.15s',
                 }}
               >⚽ 足球資訊</button>
+            </div>
+
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.75rem' }}>
+                👤 {user.username}{user.role === 'admin' ? '（admin）' : ''}
+              </span>
+              <button
+                onClick={logout}
+                style={{
+                  padding: '4px 12px', fontSize: '0.72rem', fontWeight: 700,
+                  border: '1px solid rgba(255,255,255,0.35)', borderRadius: 6,
+                  background: 'transparent', color: 'rgba(255,255,255,0.85)', cursor: 'pointer',
+                }}
+              >登出</button>
             </div>
           </nav>
 

@@ -10,6 +10,26 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ── 帳號系統：登入唔使 token・其餘全部 /api/* 都要 ──
+const auth = require('./auth');
+auth.ensureUsers().catch(e => console.error('[auth] init fail:', e.message));
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: '請輸入用戶名同密碼' });
+    const { rows } = await require('./db/pool').query(
+      'SELECT id, username, password_hash, role FROM users WHERE username = $1', [username]);
+    const u = rows[0];
+    if (!u || !auth.verifyPassword(password, u.password_hash)) {
+      return res.status(401).json({ error: '用戶名或密碼錯誤' });
+    }
+    const token = auth.signToken({ uid: u.id, username: u.username, role: u.role });
+    res.json({ token, user: { username: u.username, role: u.role } });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/auth/me', auth.authRequired, (req, res) => res.json({ user: req.user }));
+app.use('/api', auth.authRequired);
+
 // Routes
 app.use('/api/jockeys', require('./routes/jockeys'));
 app.use('/api/trainers', require('./routes/trainers'));

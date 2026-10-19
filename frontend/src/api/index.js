@@ -5,6 +5,26 @@ const api = axios.create({
   timeout: 30000,
 });
 
+// 帳號系統：自動帶 token・401 自動登出
+api.interceptors.request.use(cfg => {
+  const t = localStorage.getItem('auth_token');
+  if (t) cfg.headers.Authorization = 'Bearer ' + t;
+  return cfg;
+});
+api.interceptors.response.use(r => r, err => {
+  if (err.response?.status === 401 && !err.config?.url?.includes('/auth/login')) {
+    localStorage.removeItem('auth_token');
+    if (!window.location.search.includes('loggedout')) window.location.reload();
+  }
+  return Promise.reject(err);
+});
+
+export const login = (username, password) =>
+  api.post('/auth/login', { username, password }, { timeout: 10000 }).then(r => r.data);
+
+export const getMe = () =>
+  api.get('/auth/me', { timeout: 10000 }).then(r => r.data);
+
 export const getJockeys = (filters = {}) =>
   api.get('/jockeys', { params: filters }).then(r => r.data);
 
