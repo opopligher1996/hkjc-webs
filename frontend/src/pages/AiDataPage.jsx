@@ -2034,14 +2034,23 @@ function AiDataPanel() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [upcoming, setUpcoming] = useState(null);
+  const [selDate, setSelDate] = useState('');
+  const loadUpcoming = d => {
+    setUpcoming(null);
+    api.get('/ai-data/upcoming', { params: d ? { date: d } : {}, timeout: 120000 })
+      .then(r => {
+        setUpcoming(r.data);
+        if (!d && r.data.raceDate) setSelDate(String(r.data.raceDate).slice(0, 10));
+      })
+      .catch(() => setUpcoming({ raceDate: null, dates: [], matches: [] }));
+  };
   useEffect(() => {
     api.get('/ai-data/queries', { timeout: 300000 })
       .then(r => setData(r.data))
       .catch(e => setError(e.response?.data?.error || e.message));
-    api.get('/ai-data/upcoming', { timeout: 120000 })
-      .then(r => setUpcoming(r.data))
-      .catch(() => setUpcoming({ raceDate: null, matches: [] }));
+    loadUpcoming('');
   }, []);
+  const changeDate = d => { setSelDate(d); loadUpcoming(d); };
 
   if (error) return (
     <div>
@@ -2064,13 +2073,29 @@ function AiDataPanel() {
       <h3 style={{ margin: 0, color: '#032169', fontSize: '1rem', marginBottom: 4 }}>AI數據</h3>
       <div style={{ fontSize: '0.75rem', color: '#889', marginBottom: 12 }}>由 {data.from} 起（上季至今）・每條可撳開睇逐場細節</div>
 
-      {/* 下個賽日符合預告 */}
+      {/* 賽日預告（可揀日期） */}
       {upcoming && upcoming.raceDate && (
         <div style={{ marginBottom: 14, border: '2px solid #032169', borderRadius: 8, overflow: 'hidden' }}>
-          <div style={{ background: '#032169', color: '#fff', padding: '6px 12px', fontWeight: 700, fontSize: '0.85rem' }}>
-            📅 下個賽日預告（{String(upcoming.raceDate).slice(0, 10)}）— 符合 {upcoming.matches.length} 條訊號
+          <div style={{ background: '#032169', color: '#fff', padding: '6px 12px', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span>📅 賽日預告 — 符合 {upcoming.matches.length} 條訊號</span>
+            {upcoming.dates?.length > 0 && (
+              <select
+                value={selDate}
+                onChange={e => changeDate(e.target.value)}
+                style={{ marginLeft: 'auto', padding: '3px 8px', borderRadius: 4, border: '1px solid #ccd5e0', fontSize: '0.78rem', background: '#fff', color: '#032169' }}
+              >
+                {upcoming.dates.map(d => (
+                  <option key={d} value={d}>{d}{d === String(upcoming.raceDate).slice(0, 10) ? ' ✓' : ''}</option>
+                ))}
+              </select>
+            )}
           </div>
-          {upcoming.matches.length ? upcoming.matches.map(m => (
+          {!upcoming.matches.length && (
+            <div style={{ padding: '10px 12px', color: '#889', fontSize: '0.8rem', background: '#f4f7ff' }}>
+              {String(upcoming.raceDate).slice(0, 10)} 暫時冇馬符合 12 條訊號
+            </div>
+          )}
+          {upcoming.matches.map(m => (
             <div key={m.id} style={{ padding: '6px 12px', borderBottom: '1px solid #e5eaf4', background: '#f4f7ff' }}>
               <b style={{ color: '#032169', fontSize: '0.8rem' }}>#{m.id} {m.title}</b>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
@@ -2082,9 +2107,7 @@ function AiDataPanel() {
                 ))}
               </div>
             </div>
-          )) : (
-            <div style={{ padding: '10px 12px', color: '#889', fontSize: '0.8rem' }}>下個賽日（{String(upcoming.raceDate).slice(0, 10)}）暫時冇馬符合 12 條訊號</div>
-          )}
+          ))}
         </div>
       )}
 

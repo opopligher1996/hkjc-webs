@@ -3036,15 +3036,23 @@ app.get('/api/ai-data/queries', async (req, res) => {
 // ── AI數據：下個賽日符合預告（排位表更新後即時反映）────────────────────────
 app.get('/api/ai-data/upcoming', async (req, res) => {
   try {
-    // 1) 下個賽日 + 該日排位
-    const nd = await pool.query(
-      'SELECT DISTINCT race_date FROM racecard WHERE race_date >= CURRENT_DATE ORDER BY 1 LIMIT 1');
-    if (!nd.rows.length) return res.json({ raceDate: null, matches: [] });
-    const raceDate = nd.rows[0].race_date;
+    // 0) 可揀賽日（未來優先・過去 14 日都可返睇）
+    const { rows: allDates } = await pool.query(
+      `SELECT DISTINCT race_date FROM racecard WHERE race_date >= CURRENT_DATE - 14 ORDER BY 1 DESC LIMIT 30`);
+    const dates = allDates.map(r => new Date(r.race_date).toISOString().slice(0, 10));
+    // 1) 用指定日期・冇就下一個賽日
+    let raceDate = req.query.date || null;
+    if (!raceDate) {
+      const nd = await pool.query(
+        'SELECT DISTINCT race_date FROM racecard WHERE race_date >= CURRENT_DATE ORDER BY 1 LIMIT 1');
+      if (!nd.rows.length) return res.json({ raceDate: null, dates, matches: [] });
+      raceDate = nd.rows[0].race_date;
+    }
     const { rows: entries } = await pool.query(
       `SELECT race_no, race_class, distance, track_type, racecourse, draw, horse_name,
               jockey_id, jockey_name, trainer_name, actual_weight
        FROM racecard WHERE race_date = $1 ORDER BY race_no, draw`, [raceDate]);
+    if (!entries.length) return res.json({ raceDate: null, dates, matches: [] });
 
     // 2) 每馬歷史（最近 6 場） + 試閘
     const histMap = new Map();
@@ -3152,7 +3160,7 @@ app.get('/api/ai-data/upcoming', async (req, res) => {
       }
       if (hits.length) matches.push({ id: sig.id, title: sig.title, entries: hits });
     }
-    res.json({ raceDate, total: entries.length, matches });
+    res.json({ raceDate, dates, total: entries.length, matches });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
