@@ -272,16 +272,17 @@ function detectGreenBlue(vh, vd, va, sdAry, cvAry, rates, rois, n) {
   const exp = inv.map(x => x / s);
   const minS = Math.min(...sdAry), minC = Math.min(...cvAry);
   const minO = Math.min(vh, vd, va);
-  let green = null, deep = null;
+  let green = null, deep = null, strong = null;
   for (let i = 0; i < 3; i++) {
     if (!green && exp[i] > rates[i] && rois[i] != null && rois[i] < -0.10
       && eq([vh, vd, va][i], minO) && eq(sdAry[i], minS) && eq(cvAry[i], minC)
       && [0, 1, 2].filter(j => j !== i).every(j => exp[j] < rates[j])) {
       green = { idx: i, side: 'HDA'[i], exp: exp[i], rate: rates[i] };
       if (exp[i] - rates[i] >= 0.13) deep = { idx: i, side: 'HDA'[i], exp: exp[i], rate: rates[i] };
+      if ([vh, vd, va][i] <= 1.60) strong = { idx: i, side: 'HDA'[i], exp: exp[i], rate: rates[i] };
     }
   }
-  return { green, blue: null, deep };
+  return { green, blue: null, deep, strong };
 }
 
 // 白格（價值熱門）檢測：賠+SD+CV 三項全場最低（合一）+ 賠率 ≤2.0
@@ -340,14 +341,14 @@ async function getMergedView(tol = 0.10) {
         if (sim.n) { n = sim.n; rates = [sim.rateH, sim.rateD, sim.rateA]; rois = [sim.roiH, sim.roiD, sim.roiA]; }
       } catch (_) {}
     }
-    let yellow = null, green = null, deep = null, white = null;
+    let yellow = null, green = null, deep = null, white = null, strong = null;
     if (vh != null && sdAry && n != null && rates) {
       yellow = detectYellow(vh, vd, va, sdAry, cvAry, n, rates, rois);
       const gb = detectGreenBlue(vh, vd, va, sdAry, cvAry, rates, rois, n);
-      green = gb.green; deep = gb.deep;
+      green = gb.green; deep = gb.deep; strong = gb.strong;
       white = detectWhite(vh, vd, va, sdAry, cvAry, rates, n);
     }
-    out.push({ ...r, odds: o, hk33: k, yellow, green, deep, white, sim: (!k && n != null && rates) ? { n, rateH: rates[0], rateD: rates[1], rateA: rates[2], roiH: rois[0], roiD: rois[1], roiA: rois[2] } : null });
+    out.push({ ...r, odds: o, hk33: k, yellow, green, deep, strong, white, sim: (!k && n != null && rates) ? { n, rateH: rates[0], rateD: rates[1], rateA: rates[2], roiH: rois[0], roiD: rois[1], roiA: rois[2] } : null });
   }
   return { rows: out, at: up.at };
 }

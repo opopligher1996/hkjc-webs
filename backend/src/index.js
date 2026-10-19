@@ -3723,14 +3723,14 @@ app.get('/api/hda/upcoming', async (req, res) => {
       const n = k ? k.n : (useSim && sim ? sim.n : null);
       const rates = k ? [k.rateH, k.rateD, k.rateA] : (useSim && sim ? [sim.rateH, sim.rateD, sim.rateA] : null);
       const rois = k ? [k.roiH, k.roiD, k.roiA] : (useSim && sim ? [sim.roiH, sim.roiD, sim.roiA] : null);
-      let yellow = null, green = null, deep = null, white = null;
+      let yellow = null, green = null, deep = null, white = null, strong = null;
       if (vh != null && sdAry && n != null && rates) {
         yellow = hdaService.detectYellow(vh, vd, va, sdAry, cvAry, n, rates, rois);
         const gb = hdaService.detectGreenBlue(vh, vd, va, sdAry, cvAry, rates, rois, n);
-        green = gb.green; deep = gb.deep;
+        green = gb.green; deep = gb.deep; strong = gb.strong;
         white = hdaService.detectWhite(vh, vd, va, sdAry, cvAry, rates, n);
       }
-      matches.push({ ...r, odds: o, sim, hk33: k, yellow, green, deep, white });
+      matches.push({ ...r, odds: o, sim, hk33: k, yellow, green, deep, strong, white });
     }
     // 自動捕捉新嘅黃/綠入庫（summary 即時更新；已存在唔會重寫）
     try { await hdaDaily.captureYellows({ rows: matches }); } catch (_) {}

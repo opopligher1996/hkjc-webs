@@ -68,7 +68,7 @@ export default function HDAAnalysisPage() {
       '預計主%','預計和%','預計客%',
       '場數','開出主%','開出和%','開出客%','回報主%','回報和%','回報客%',
       '馬會HAD主','馬會HAD和','馬會HAD客',
-      '黃格','綠格','深綠','白格','紫格候選',
+      '黃格','綠格','深綠','強綠','白格','紫格候選',
     ]];
     for (const m of matches) {
       const o = m.odds;
@@ -90,7 +90,7 @@ export default function HDAAnalysisPage() {
         rates ? +(rates[0]*100).toFixed(0) : '', rates ? +(rates[1]*100).toFixed(0) : '', rates ? +(rates[2]*100).toFixed(0) : '',
         rois ? +(rois[0]*100).toFixed(1) : '', rois ? +(rois[1]*100).toFixed(1) : '', rois ? +(rois[2]*100).toFixed(1) : '',
         m.hadH, m.hadD, m.hadA,
-        m.yellow ? '🟨' : '', m.green ? '🟩' : '', m.deep ? '🟢' : '', m.white ? '⚪' : '', (vh && vh <= 1.6) ? '🟪' : '',
+        m.yellow ? '🟨' : '', m.green ? '🟩' : '', m.deep ? '🟢' : '', m.strong ? '💚' : '', m.white ? '⚪' : '', (vh && vh <= 1.6) ? '🟪' : '',
       ]);
     }
     const wb = XLSX.utils.book_new();
@@ -206,7 +206,7 @@ export default function HDAAnalysisPage() {
         {ystats ? (
           <>
             <div className="ai-muted" style={{ fontSize: '0.72rem', marginTop: 4 }}>
-              🟨 黃 = 三項最低+比率≥50%+回報&lt;0%+場數≥30｜🟩 綠 = 三項最低+預計&gt;歷史+對方兩邊預計&lt;歷史+回報&lt;-10%+場數≥30｜🟢 深綠 = 綠格 + gap≥13pp｜⚪ 白 = 三項最低+賠率≤2.0+預計比歷史低5pp+（市場睇低=價值熱門）+場數&gt;30｜🟪 紫 = 主≤1.6+客收盤受捧3%+→買客（完場後按收盤價入庫）
+              🟨 黃 = 三項最低+比率≥50%+回報&lt;0%+場數≥30｜🟩 綠 = 三項最低+預計&gt;歷史+對方兩邊預計&lt;歷史+回報&lt;-10%+場數≥30｜🟢 深綠 = 綠格 + gap≥13pp（原裝）｜💚 強綠 = 綠格 + 賠率≤1.60（回測70%開出）｜⚪ 白 = 三項最低+賠率≤2.0+預計比歷史低5pp+（市場睇低=價值熱門）+場數&gt;30｜🟪 紫 = 主≤1.6+客收盤受捧3%+→買客（完場後按收盤價入庫）
               {ystats.byBench && Object.keys(ystats.byBench).length > 0 && (
                 <span>｜開出率分組：{Object.entries(ystats.byBench).map(([k, v]) =>
                   `${{ 'Y:HK33': '黃·HK33', 'Y:sim': '黃·sim', 'G:HK33': '綠·HK33', 'G:sim': '綠·sim' }[k] || k} ${(v.hitRate * 100).toFixed(0)}%(${v.n})`).join('・')}</span>
@@ -214,7 +214,8 @@ export default function HDAAnalysisPage() {
             </div>
             <TrackTable color="Y" name="🟨 黃格賽事" bg="#fffbe6" border="#e6d47e" stats={ystats.byColor?.Y} matches={ystats.matches.filter(m => m.color === 'Y')} onAhEdit={setAhEdit} simpleRoiFilter />
             <TrackTable color="G" name="🟩 綠格賽事" bg="#f0f9f1" border="#b7dfc0" stats={ystats.byColor?.G} matches={ystats.matches.filter(m => m.color === 'G')} fade onAhEdit={setAhEdit} />
-            <TrackTable color="D" name="🟢 深綠格賽事" bg="#dcefdd" border="#5cb85c" stats={ystats.byColor?.D} matches={ystats.matches.filter(m => m.color === 'D')} fade gapFilter onAhEdit={setAhEdit} qualityMarks />
+            <TrackTable color="D" name="🟢 深綠格賽事（原裝 gap≥13pp）" bg="#dcefdd" border="#5cb85c" stats={ystats.byColor?.D} matches={ystats.matches.filter(m => m.color === 'D')} fade gapFilter onAhEdit={setAhEdit} qualityMarks />
+            <TrackTable color="S" name="💚 強綠格賽事（綠格+賠率≤1.60・回測70%開出）" bg="#e0f2e9" border="#3fa376" stats={ystats.byColor?.S} matches={ystats.matches.filter(m => m.color === 'S')} fade onAhEdit={setAhEdit} />
             <TrackTable color="W" name="⚪ 白格賽事（價值熱門・市場睇低5pp+）" bg="#e8f2fc" border="#5a9fd8" stats={ystats.byColor?.W} matches={ystats.matches.filter(m => m.color === 'W')} fade onAhEdit={setAhEdit} />
             <TrackTable color="P" name="🟪 紫格賽事（主≤1.6+客收盤受捧3%+ → 買客）" bg="#f3eefa" border="#9b7fd4" stats={ystats.byColor?.P} matches={ystats.matches.filter(m => m.color === 'P')} onAhEdit={setAhEdit} />
             <BacktestTable />
@@ -305,13 +306,16 @@ export default function HDAAnalysisPage() {
                 && eq([vh, vd, va][i], minOddsV) && eq(sdAry[i], minSdV) && eq(cvAry[i], minCvV));
               // 白格：三項最低 + 賠率≤2.0 + gap ≤ -5pp（市場睇低）・用後端計好嘅 m.white
               const white = m.white;
-              const rowBg = white ? '#dceefc' : yellow ? '#fff3cd' : deep ? '#a8d5aa' : green ? '#d4edda' : (i % 2 ? '#f8fafd' : '#fff');
-              const rowBorder = white ? '2px solid #1e7fd6' : yellow ? '2px solid #e6b800' : deep ? '2px solid #1e7e34' : green ? '2px solid #28a745' : 'none';
+              // 強綠：綠格 + 賠率≤1.60・用後端計好嘅 m.strong
+              const strong = m.strong;
+              const rowBg = white ? '#dceefc' : deep ? '#a8d5aa' : strong ? '#c8e8d5' : yellow ? '#fff3cd' : green ? '#d4edda' : (i % 2 ? '#f8fafd' : '#fff');
+              const rowBorder = white ? '2px solid #1e7fd6' : deep ? '2px solid #1e7e34' : strong ? '2px solid #2e9e6b' : yellow ? '2px solid #e6b800' : green ? '2px solid #28a745' : 'none';
               return (
                 <tr key={m.fb} style={{ background: rowBg, outline: rowBorder }}>
                   <td style={{ padding: '6px 8px', whiteSpace: 'nowrap', fontWeight: 700, color: '#032169' }}>
                     {WD[d.getDay()]} {m.fb.replace('FB', '')}
                     {white && <span title="白格（價值熱門：市場睇低5pp+）">⚪</span>}
+                    {strong && !deep && <span title="強綠格（綠格+賠率≤1.60）">💚</span>}
                     {green && <span title={deep ? '深綠格' : '綠格'}>{deep ? '🟢' : '🟩'}</span>}
                     {vh != null && vh <= 1.6 && <span title="紫格候選（主大熱・臨場睇客賠有冇跌3%+）">🟪</span>}
                   </td>
