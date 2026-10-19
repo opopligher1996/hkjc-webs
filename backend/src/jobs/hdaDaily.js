@@ -79,6 +79,7 @@ async function captureYellows(view) {
     { key: 'yellow', code: 'Y' },
     { key: 'green', code: 'G' },
     { key: 'deep', code: 'D' },
+    { key: 'white', code: 'W' },
   ];
   for (const m of view.rows) {
     const o = m.odds, k0 = m.hk33, sim = m.sim;

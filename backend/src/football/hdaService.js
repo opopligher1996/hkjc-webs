@@ -284,6 +284,30 @@ function detectGreenBlue(vh, vd, va, sdAry, cvAry, rates, rois, n) {
   return { green, blue: null, deep };
 }
 
+// 白格（價值熱門）檢測：賠+SD+CV 三項全場最低（合一）+ 賠率 ≤2.0
+//   + gap（預計−歷史）≤ -5pp（市場定價低過歷史 = 價值）+ n>30
+//   乾淨數據回測：n=196・開出 70.9%（預計 62.9%）・ROI +4.3%
+function detectWhite(vh, vd, va, sdAry, cvAry, rates, n) {
+  if (rates == null || rates.some(r => r == null)) return null;
+  if (n == null || n < 30) return null;
+  if (!sdAry || sdAry.some(x => x == null || x === 0)) return null;
+  if (!cvAry || cvAry.some(x => x == null || x === 0)) return null;
+  const eq = (a, b) => a != null && b != null && Math.abs(a - b) < 1e-9;
+  const odds = [vh, vd, va];
+  const inv = odds.map(x => 1 / x);
+  const s = inv[0] + inv[1] + inv[2];
+  const exp = inv.map(x => x / s);
+  const minS = Math.min(...sdAry), minC = Math.min(...cvAry);
+  const minO = Math.min(...odds);
+  for (let i = 0; i < 3; i++) {
+    if (eq(odds[i], minO) && eq(sdAry[i], minS) && eq(cvAry[i], minC)
+      && odds[i] <= 2.0 && (exp[i] - rates[i]) <= -0.05) {
+      return { idx: i, side: 'HDA'[i], exp: exp[i], rate: rates[i] };
+    }
+  }
+  return null;
+}
+
 async function getMergedView(tol = 0.10) {
   const up = await buildUpcoming();
   const ids = up.rows.filter(r => r.titanId).map(r => r.titanId);
@@ -316,15 +340,16 @@ async function getMergedView(tol = 0.10) {
         if (sim.n) { n = sim.n; rates = [sim.rateH, sim.rateD, sim.rateA]; rois = [sim.roiH, sim.roiD, sim.roiA]; }
       } catch (_) {}
     }
-    let yellow = null, green = null, deep = null;
+    let yellow = null, green = null, deep = null, white = null;
     if (vh != null && sdAry && n != null && rates) {
       yellow = detectYellow(vh, vd, va, sdAry, cvAry, n, rates, rois);
       const gb = detectGreenBlue(vh, vd, va, sdAry, cvAry, rates, rois, n);
       green = gb.green; deep = gb.deep;
+      white = detectWhite(vh, vd, va, sdAry, cvAry, rates, n);
     }
-    out.push({ ...r, odds: o, hk33: k, yellow, green, deep, sim: (!k && n != null && rates) ? { n, rateH: rates[0], rateD: rates[1], rateA: rates[2], roiH: rois[0], roiD: rois[1], roiA: rois[2] } : null });
+    out.push({ ...r, odds: o, hk33: k, yellow, green, deep, white, sim: (!k && n != null && rates) ? { n, rateH: rates[0], rateD: rates[1], rateA: rates[2], roiH: rois[0], roiD: rois[1], roiA: rois[2] } : null });
   }
   return { rows: out, at: up.at };
 }
 
-module.exports = { buildUpcoming, runBatch, batchState, s2t, nameSim, similarStats, scrapeOne, getMergedView, detectYellow, detectGreenBlue, refreshAliasMap, learnAlias };
+module.exports = { buildUpcoming, runBatch, batchState, s2t, nameSim, similarStats, scrapeOne, getMergedView, detectYellow, detectGreenBlue, detectWhite, refreshAliasMap, learnAlias };

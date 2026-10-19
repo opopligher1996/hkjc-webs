@@ -3286,7 +3286,7 @@ app.get('/api/hda/track-stats', async (req, res) => {
               COALESCE(t.bench_src, CASE WHEN h.fb IS NOT NULL THEN 'HK33' ELSE 'sim' END) AS bench
        FROM hda_track t
        LEFT JOIN hk33_had h ON h.fb = t.fb AND (h.data->>'rateH') IS NOT NULL
-       ORDER BY (t.match_date::text || ' ' || COALESCE(t.kickoff, '00:00')) DESC, t.fb DESC LIMIT 400`);
+       ORDER BY (t.match_date::text || ' ' || COALESCE(t.kickoff, '00:00')) DESC, t.fb DESC LIMIT 1000`);
     const byColor = { Y: null, G: null, B: null };
     for (const r of agg.rows) {
       byColor[r.color] = {
@@ -3723,13 +3723,14 @@ app.get('/api/hda/upcoming', async (req, res) => {
       const n = k ? k.n : (useSim && sim ? sim.n : null);
       const rates = k ? [k.rateH, k.rateD, k.rateA] : (useSim && sim ? [sim.rateH, sim.rateD, sim.rateA] : null);
       const rois = k ? [k.roiH, k.roiD, k.roiA] : (useSim && sim ? [sim.roiH, sim.roiD, sim.roiA] : null);
-      let yellow = null, green = null, deep = null;
+      let yellow = null, green = null, deep = null, white = null;
       if (vh != null && sdAry && n != null && rates) {
         yellow = hdaService.detectYellow(vh, vd, va, sdAry, cvAry, n, rates, rois);
         const gb = hdaService.detectGreenBlue(vh, vd, va, sdAry, cvAry, rates, rois, n);
         green = gb.green; deep = gb.deep;
+        white = hdaService.detectWhite(vh, vd, va, sdAry, cvAry, rates, n);
       }
-      matches.push({ ...r, odds: o, sim, hk33: k, yellow, green, deep });
+      matches.push({ ...r, odds: o, sim, hk33: k, yellow, green, deep, white });
     }
     // 自動捕捉新嘅黃/綠入庫（summary 即時更新；已存在唔會重寫）
     try { await hdaDaily.captureYellows({ rows: matches }); } catch (_) {}
