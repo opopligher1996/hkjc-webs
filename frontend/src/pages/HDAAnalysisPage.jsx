@@ -316,7 +316,7 @@ export default function HDAAnalysisPage() {
                 <tr key={m.fb} style={{ background: rowBg, outline: rowBorder }}>
                   <td style={{ padding: '6px 8px', whiteSpace: 'nowrap', fontWeight: 700, color: '#032169' }}>
                     {WD[d.getDay()]} {m.fb.replace('FB', '')}
-                    {white && <span title="白格（價值熱門：市場睇低5pp+）">⚪</span>}
+                    {white && <span title="白格">⚪</span>}
                     {strong && !deep && <span title="強綠格（綠格+賠率≤1.60）">💚</span>}
                     {green && <span title={deep ? '深綠格' : '綠格'}>{deep ? '🟢' : '🟩'}</span>}
                     {vh != null && vh <= 1.6 && <span title="紫格候選（主大熱・臨場睇客賠有冇跌3%+）">🟪</span>}
