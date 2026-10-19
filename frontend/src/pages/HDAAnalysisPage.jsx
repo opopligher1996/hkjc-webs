@@ -174,7 +174,7 @@ export default function HDAAnalysisPage() {
 
       <div className="ai-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <h4 style={{ margin: 0 }}>
-          📅 馬會未來十日賽事（{data ? `${data.count} 場・HK33 ${data.withHk33} 場・自抓 ${data.withOdds} 場` : '載入中'}）
+          📅 馬會未來十日賽事（{data ? `${data.count} 場` : '載入中'}）
         </h4>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {b?.running ? (
