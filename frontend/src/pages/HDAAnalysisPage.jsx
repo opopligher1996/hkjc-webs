@@ -699,10 +699,11 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
   const [rateF, setRateF] = useState('all');
   const [roiF, setRoiF] = useState('all');
   const [gapF, setGapF] = useState('all');
+  const [oddsF, setOddsF] = useState('all');
   const [openFb, setOpenFb] = useState(null);
   const [hideNums, setHideNums] = useState(false);
   const td = { padding: '3px 6px', borderBottom: '1px solid #eee' };
-  // 過濾：開出比率 / 回報率 / gap（深綠格專用）
+  // 過濾：開出比率 / 回報率 / gap / 賠率（深綠格專用）
   const calcGap = y => {
     if (y.odds_h && y.odds_d && y.odds_a && y.rate != null) {
       const inv = 1/+y.odds_h + 1/+y.odds_d + 1/+y.odds_a;
@@ -717,7 +718,18 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
       const g = calcGap(y);
       if (g == null) return false;
       if (gapF === '10-13' && !(g >= 0.10 && g < 0.13)) return false;
-      if (gapF === '13+' && !(g >= 0.13)) return false;
+      if (gapF === '13-16' && !(g >= 0.13 && g < 0.16)) return false;
+      if (gapF === '16-20' && !(g >= 0.16 && g < 0.20)) return false;
+      if (gapF === '20+' && !(g >= 0.20)) return false;
+    }
+    if (gapFilter && oddsF !== 'all') {
+      if (y.odds == null) return false;
+      const o = +y.odds;
+      if (oddsF === 'le150' && !(o <= 1.50)) return false;
+      if (oddsF === '150-165' && !(o > 1.50 && o <= 1.65)) return false;
+      if (oddsF === '165-180' && !(o > 1.65 && o <= 1.80)) return false;
+      if (oddsF === '180-200' && !(o > 1.80 && o <= 2.00)) return false;
+      if (oddsF === 'gt200' && !(o > 2.00)) return false;
     }
     if (rateF !== 'all' || roiF !== 'all') {
       if (y.rate == null || y.roi == null) return false;
@@ -787,15 +799,29 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
             <option value="40+">40%以上</option>
            </select>
          </label>
-         {gapFilter && (
-           <label style={{ fontSize: '0.72rem', color: '#556' }}>分歧度
-             <select style={selStyle} value={gapF} onChange={e => setGapF(e.target.value)}>
-               <option value="all">全部</option>
-               <option value="10-13">10-13pp</option>
-               <option value="13+">13pp以上</option>
-             </select>
-           </label>
-         )}
+          {gapFilter && (
+            <>
+              <label style={{ fontSize: '0.72rem', color: '#556' }}>賠率
+                <select style={selStyle} value={oddsF} onChange={e => setOddsF(e.target.value)}>
+                  <option value="all">全部</option>
+                  <option value="le150">≤1.50</option>
+                  <option value="150-165">1.50-1.65</option>
+                  <option value="165-180">1.65-1.80</option>
+                  <option value="180-200">1.80-2.00</option>
+                  <option value="gt200">&gt;2.00</option>
+                </select>
+              </label>
+              <label style={{ fontSize: '0.72rem', color: '#556' }}>分歧度
+                <select style={selStyle} value={gapF} onChange={e => setGapF(e.target.value)}>
+                  <option value="all">全部</option>
+                  <option value="10-13">10-13pp</option>
+                  <option value="13-16">13-16pp</option>
+                  <option value="16-20">16-20pp</option>
+                  <option value="20+">20pp以上</option>
+                </select>
+              </label>
+            </>
+          )}
           <label style={{ fontSize: '0.72rem', color: '#556' }}>回報率
             <select style={selStyle} value={roiF} onChange={e => setRoiF(e.target.value)}>
               <option value="all">全部</option>
