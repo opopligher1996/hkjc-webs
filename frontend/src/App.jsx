@@ -189,7 +189,7 @@ export default function App() {
         </main>
 
         <footer style={{ background: '#0d1b3e', color: 'rgba(255,255,255,0.5)', padding: '10px 24px', textAlign: 'center', fontSize: '0.75rem' }}>
-          數據來源：香港賽馬會 racing.hkjc.com・titan007・HK33
+          數據來源來自上帝
         </footer>
       </div>
     </BrowserRouter>
