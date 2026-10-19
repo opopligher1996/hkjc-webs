@@ -82,7 +82,7 @@ export default function App() {
               letterSpacing: 2,
               marginRight: 16,
               whiteSpace: 'nowrap',
-            }}>LEGACY</a>
+            }}>LEGACY.ai</a>
 
             <div style={{ display: 'flex', gap: 2, height: '100%' }}>
               <button

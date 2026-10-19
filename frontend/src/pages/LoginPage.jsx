@@ -32,7 +32,7 @@ export default function LoginPage({ onLogin }) {
       }}>
         <div style={{ textAlign: 'center', marginBottom: 26 }}>
           <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: 2, color: '#032169' }}>
-            LEGACY
+            LEGACY.ai
           </div>
           <div style={{ fontSize: '0.78rem', color: '#889', marginTop: 4 }}>
             賽馬・足球數據分析平台
