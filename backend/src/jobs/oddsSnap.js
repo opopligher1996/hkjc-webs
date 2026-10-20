@@ -5,9 +5,10 @@ const pool = require('../db/pool');
 
 const running = { busy: false, last: 0, runs: 0, rows: 0 };
 
-async function snapshotPending() {
+async function snapshotPending(opts = {}) {
   if (running.busy) return { skipped: true };
-  if (Date.now() - running.last < 90 * 60 * 1000) return { skipped: true }; // 1.5h 內唔重複
+  // 手動 force 跳過 1.5h 防重・cron 用預設 guard
+  if (!opts.force && Date.now() - running.last < 90 * 60 * 1000) return { skipped: true };
   running.busy = true;
   let inserted = 0;
   try {

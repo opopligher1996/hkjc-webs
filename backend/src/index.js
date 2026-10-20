@@ -3749,8 +3749,11 @@ app.get('/api/hda/patterns', async (req, res) => {
 
 // GET /api/hda/upcoming — 馬會全部賽事 + 百家初盤 + 相似賠率統計（HK33 優先）
 const hk33Mod = require('./football/hk33');
+// GET /api/hda/upcoming — 馬會未來十日賽事（合併視圖）
 app.get('/api/hda/upcoming', async (req, res) => {
   try {
+    // 撳刷新 → 即刻快照 pending 深綠格盤口軌跡（背景跑・唔阻響應）
+    require('./jobs/oddsSnap').snapshotPending({ force: true }).catch(() => {});
     const up = await hdaService.buildUpcoming(req.query.refresh === '1');
     const ids = up.rows.filter(r => r.titanId).map(r => r.titanId);
     let oddsMap = {};
