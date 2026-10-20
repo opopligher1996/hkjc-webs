@@ -96,10 +96,9 @@ async function captureYellows(view) {
     const rateArr = k ? [k.rateH, k.rateD, k.rateA] : (sim && sim.n >= 30 ? [sim.rateH, sim.rateD, sim.rateA] : null);
     const roiArr = k ? [k.roiH, k.roiD, k.roiA] : (sim && sim.n >= 30 ? [sim.roiH, sim.roiD, sim.roiA] : null);
     for (const c of COLORS) {
-      let hit = m[c.key];
+      // 深綠：乾淨 deep 或 舊法 deepOld（壞池優先）— m.deep 為 null 唔可以跳
+      let hit = c.code === 'D' ? (m.deepOld || m.deep) : m[c.key];
       if (!hit) continue;
-      // 深綠格：舊計法（壞池 gap≥13pp）優先 — 舊計法繼續累積喺深綠格統計
-      if (c.code === 'D' && m.deepOld) hit = m.deepOld;
       const i = hit.idx;
       // 舊計法深綠用壞池 n/rate/roi・其他用 HK33/sim
       const isBad = c.code === 'D' && m.deepOld && hit === m.deepOld;
