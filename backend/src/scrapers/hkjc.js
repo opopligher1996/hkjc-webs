@@ -2705,6 +2705,27 @@ async function saveLocalResults(raceDate, racecourse, raceNo) {
   return splits;
 }
 
+// ── 未來賽事移欄：bet.hkjc.com 賽馬頁「"B" 賽道」 ──
+const railCache = new Map(); // key date|course → { rail, at }
+async function fetchUpcomingRail(raceDate, racecourse) {
+  const key = `${raceDate}|${racecourse}`;
+  const c = railCache.get(key);
+  if (c && Date.now() - c.at < 30 * 60 * 1000) return c.rail;
+  let rail = null;
+  let page;
+  try {
+    page = await newPage();
+    await page.goto(`https://bet.hkjc.com/ch/racing/home/${raceDate}/${racecourse}/1`, { waitUntil: 'networkidle2', timeout: 45000 });
+    await new Promise(r => setTimeout(r, 2500));
+    const txt = await page.evaluate(() => document.body.innerText);
+    const m = txt.match(/"([A-C]\+?\d*)"\s*賽道/);
+    if (m) rail = m[1];
+  } catch (_) {}
+  if (page) await page.close().catch(() => {});
+  railCache.set(key, { rail, at: Date.now() });
+  return rail;
+}
+
 // ── 移欄（賽道選用）：馬匹頁紀錄表「跑馬地草地"C+3"」格 ──
 // 谷草/田草有移欄・田泥（全天候）冇（記 'NA'）
 async function fetchMeetingRail(raceDate, racecourse) {
@@ -2786,6 +2807,7 @@ module.exports = {
   scrapeVetRecord,
   scrapeTrackwork,
   fetchMeetingRail,
+  fetchUpcomingRail,
   scrapeLocalResults,
   saveLocalResults,
   scrapeRaceCountFromLocalResults,

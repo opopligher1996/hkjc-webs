@@ -2932,13 +2932,13 @@ app.get('/api/ai-data/queries', async (req, res) => {
       FROM w LEFT JOIN jockeys j ON j.id = w.jockey_id`;
 
     const defs = [
-      { id: 1, title: '沈集成馬匹首次降班並配搭布文', note: '該馬紀錄內首次落班嗰場',
-        sql: `${W}, w2 AS (SELECT w.*, MIN(CASE WHEN w.class_num > w.prev_class_num THEN w.race_date END) OVER (PARTITION BY w.horse_name) fd FROM w)
+      { id: 1, title: '沈集成馬匹降至第五班首仗並配搭布文', note: '該馬紀錄內首次落第五班嗰場',
+        sql: `${W}, w2 AS (SELECT w.*, MIN(CASE WHEN w.class_num > w.prev_class_num AND w.class_num = 5 THEN w.race_date END) OVER (PARTITION BY w.horse_name) fd FROM w)
               SELECT w2.race_date, w2.racecourse, w2.race_no, w2.race_class, w2.distance, w2.horse_name,
               COALESCE(j.name_zh, w2.jockey_id) jockey, w2.trainer_name, w2.draw, w2.actual_weight,
               w2.finish_position, w2.win_odds, w2.prev_date, w2.prev_course, w2.prev_pos, w2.prev_dist, w2.prev_class_num
               FROM w2 LEFT JOIN jockeys j ON j.id = w2.jockey_id
-              WHERE w2.class_num > w2.prev_class_num AND w2.race_date = w2.fd AND w2.race_date >= $1
+              WHERE w2.class_num = 5 AND w2.class_num > w2.prev_class_num AND w2.race_date = w2.fd AND w2.race_date >= $1
                 AND w2.trainer_name = '沈集成' AND w2.jockey_id = 'BH' ORDER BY w2.race_date DESC` },
       { id: 2, title: '廖康銘馬匹該馬紀錄內首次由潘頓執韁（排除香港初出）', note: '該馬紀錄內首次由潘頓執韁・該場練馬師廖康銘・非在港初出',
         sql: `${W}, firstpz AS (SELECT horse_name, MIN(race_date) fd FROM race_records WHERE jockey_id='PZ' AND horse_name IS NOT NULL GROUP BY horse_name)
@@ -2963,9 +2963,10 @@ app.get('/api/ai-data/queries', async (req, res) => {
         sql: `${W} ${SEL} WHERE w.race_date >= $1 AND w.trainer_name='巫偉傑' AND w.racecourse='HV'
                 AND w.distance > w.prev_dist AND w.prev_trainer='巫偉傑' AND w.prev_pos <= 3
                 AND w.prev_course <> 'HV' ORDER BY w.race_date DESC` },
-      { id: 8, title: '潘頓田草 1600米 排1-4檔', note: '⚠ 資料庫未存欄位（C/C+3），暫以全欄位統計',
+      { id: 8, title: '潘頓田草 1600米 移欄C+3 排1-4檔', note: '移欄C+3（2025+數據已齊）',
         sql: `${W} ${SEL} WHERE w.race_date >= $1 AND w.jockey_id='PZ' AND w.racecourse='ST'
-                AND w.track_type='TURF' AND w.distance=1600 AND w.draw BETWEEN 1 AND 4 ORDER BY w.race_date DESC` },
+                AND w.track_type='TURF' AND w.distance=1600 AND w.draw BETWEEN 1 AND 4
+                AND w.rail = 'C+3' ORDER BY w.race_date DESC` },
       { id: 9, title: '大衛希斯馬匹入前四・下仗換潘頓負磅≤130', note: '上仗唔係潘頓執韁先算「換」',
         sql: `${W} ${SEL} WHERE w.race_date >= $1 AND w.jockey_id='PZ' AND w.actual_weight <= 130
                 AND w.prev_trainer='大衛希斯' AND w.prev_pos <= 4
@@ -2974,10 +2975,11 @@ app.get('/api/ai-data/queries', async (req, res) => {
         sql: `${W} ${SEL} WHERE w.race_date >= $1 AND w.trainer_name='呂健威' AND w.jockey_id='HCY'
                 AND w.prev_jockey IS NOT NULL AND w.prev_jockey <> 'HCY'
                 AND w.race_date - w.prev_date >= 30 AND ${TRIAL} ORDER BY w.race_date DESC` },
-      { id: 11, title: '潘頓田草四班1600米・130磅或以下・排1-4檔', note: '⚠ 資料庫未存欄位（C欄），暫以全欄位統計',
+      { id: 11, title: '潘頓田草四班1600米・移欄C・130磅或以下・排1-4檔', note: '移欄C・賽前有試閘（試閘喺上場之後）',
         sql: `${W} ${SEL} WHERE w.race_date >= $1 AND w.jockey_id='PZ' AND w.racecourse='ST'
                 AND w.track_type='TURF' AND w.distance=1600 AND w.race_class IN ('第四班','4')
-                AND w.actual_weight <= 130 AND w.draw BETWEEN 1 AND 4 ORDER BY w.race_date DESC` },
+                AND w.actual_weight <= 130 AND w.draw BETWEEN 1 AND 4
+                AND w.rail = 'C' AND ${TRIAL} ORDER BY w.race_date DESC` },
       { id: 12, title: '巫偉傑馬匹上仗三甲・再出抽≤4檔兼賽前有試閘', note: '試閘喺兩場之間',
         sql: `${W} ${SEL} WHERE w.race_date >= $1 AND w.trainer_name='巫偉傑' AND w.draw <= 4
                 AND w.prev_trainer='巫偉傑' AND w.prev_pos <= 3 AND ${TRIAL} ORDER BY w.race_date DESC` },
@@ -3074,12 +3076,19 @@ app.get('/api/ai-data/upcoming', async (req, res) => {
     const classNum = c => ({ '第一班': 1, '1': 1, 'G1': 1, '第二班': 2, '2': 2, 'G2': 2,
       '第三班': 3, '3': 3, 'G3': 3, '第四班': 4, '4': 4, '第五班': 5, '5': 5 }[c] || null);
 
+    // 未來賽事移欄（bet.hkjc.com 賽道）— 附加落每匹馬俾訊號用
+    let upcomingRail = null;
+    try {
+      upcomingRail = await scraper.fetchUpcomingRail(String(raceDate).slice(0, 10), entries[0]?.racecourse || 'ST');
+      if (upcomingRail) entries.forEach(e => { e.rail = upcomingRail; });
+    } catch (_) {}
+
     const SIGNALS = [
-      { id: 1, title: '沈集成首次降班+布文', test: (e, last, hist) =>
+      { id: 1, title: '沈集成降至第五班首仗+布文', test: (e, last, hist) =>
         e.trainer_name === '沈集成' && e.jockey_id === 'BH' && last &&
         classNum(e.race_class) && classNum(last.race_class) &&
-        classNum(e.race_class) > classNum(last.race_class) &&
-        !hist.some((r, i) => i < hist.length - 1 && classNum(r.race_class) && classNum(hist[i + 1].race_class) && classNum(r.race_class) > classNum(hist[i + 1].race_class)) },
+        classNum(e.race_class) === 5 && classNum(e.race_class) > classNum(last.race_class) &&
+        !hist.some((r, i) => i < hist.length - 1 && classNum(r.race_class) && classNum(hist[i + 1].race_class) && classNum(r.race_class) === 5 && classNum(r.race_class) > classNum(hist[i + 1].race_class)) },
       { id: 2, title: '廖康銘馬匹首次由潘頓執韁（非初出）', test: (e) => {
         const hist = histMap.get(e.horse_name) || [];
         if (!hist.length) return false; // 在港初出 → 排除
@@ -3105,9 +3114,9 @@ app.get('/api/ai-data/upcoming', async (req, res) => {
         e.trainer_name === '巫偉傑' && e.racecourse === 'HV' && last &&
         last.trainer_name === '巫偉傑' && last.finish_position <= 3 &&
         last.racecourse !== 'HV' && e.distance > last.distance },
-      { id: 8, title: '潘頓田草1600米1-4檔', test: (e) =>
+      { id: 8, title: '潘頓田草1600米・移欄C+3・1-4檔', test: (e) =>
         e.jockey_id === 'PZ' && e.racecourse === 'ST' && e.track_type === 'TURF' &&
-        e.distance === 1600 && e.draw >= 1 && e.draw <= 4 },
+        e.distance === 1600 && e.draw >= 1 && e.draw <= 4 && e.rail === 'C+3' },
       { id: 9, title: '大衛希斯前四→換潘頓≤130磅', test: (e, last) => {
         if (e.jockey_id !== 'PZ' || +e.actual_weight > 130) return false;
         if (!last || last.trainer_name !== '大衛希斯' || !(last.finish_position <= 4)) return false;
@@ -3121,10 +3130,10 @@ app.get('/api/ai-data/upcoming', async (req, res) => {
         return (trialMap.get(e.horse_name) || []).some(t =>
           new Date(t.trial_date) > new Date(last.race_date) && new Date(t.trial_date) < new Date(raceDate));
       } },
-      { id: 11, title: '潘頓田草四班1600・≤130磅・1-4檔', test: (e) =>
+      { id: 11, title: '潘頓田草四班1600・移欄C・≤130磅・1-4檔', test: (e) =>
         e.jockey_id === 'PZ' && e.racecourse === 'ST' && e.track_type === 'TURF' &&
         e.distance === 1600 && ['第四班', '4'].includes(e.race_class) &&
-        +e.actual_weight <= 130 && e.draw >= 1 && e.draw <= 4 },
+        +e.actual_weight <= 130 && e.draw >= 1 && e.draw <= 4 && e.rail === 'C' },
       { id: 12, title: '巫偉傑三甲+≤4檔+試閘', test: (e, last) => {
         if (!last || e.trainer_name !== '巫偉傑' || !(e.draw <= 4)) return false;
         if (last.trainer_name !== '巫偉傑' || !(last.finish_position <= 3)) return false;
@@ -3160,7 +3169,7 @@ app.get('/api/ai-data/upcoming', async (req, res) => {
       }
       if (hits.length) matches.push({ id: sig.id, title: sig.title, entries: hits });
     }
-    res.json({ raceDate, dates, total: entries.length, matches });
+    res.json({ raceDate, dates, rail: upcomingRail, total: entries.length, matches });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

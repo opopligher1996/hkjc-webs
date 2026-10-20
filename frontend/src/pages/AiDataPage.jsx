@@ -2077,7 +2077,7 @@ function AiDataPanel() {
       {upcoming && upcoming.raceDate && (
         <div style={{ marginBottom: 14, border: '2px solid #032169', borderRadius: 8, overflow: 'hidden' }}>
           <div style={{ background: '#032169', color: '#fff', padding: '6px 12px', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span>📅 賽日預告 — 符合 {upcoming.matches.length} 條訊號</span>
+            <span>📅 賽日預告 — 符合 {upcoming.matches.length} 條訊號{upcoming.rail ? `｜移欄 ${upcoming.rail}` : ''}</span>
             {upcoming.dates?.length > 0 && (
               <select
                 value={selDate}
