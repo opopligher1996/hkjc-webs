@@ -23,7 +23,7 @@ const RACING_LINKS = [
   { to: '/racecard', label: '本地排位表' },
   { to: '/advanced-racecard', label: '高級排位表' },
   { to: '/ai-data', label: '數據庫' },
-  { to: '/', label: '騎師資料', end: true },
+  { to: '/jockeys', label: '騎師資料' },
   { to: '/trainers', label: '練馬師資料' },
   { to: '/draw', label: '檔位搜尋' },
   { to: '/horses', label: '馬匹資料' },
@@ -40,7 +40,7 @@ const FOOTBALL_LINKS = [
 ];
 
 export default function App() {
-  const [section, setSection] = useState('racing');
+  const [section, setSection] = useState('football');
   // 帳號系統：undefined = 驗證中・null = 未登入
   const [user, setUser] = useState(undefined);
   React.useEffect(() => {
@@ -167,7 +167,8 @@ export default function App() {
 
         <main className="main-content">
           <Routes>
-            <Route path="/" element={<JockeyPage />} />
+            <Route path="/" element={<HDAAnalysisPage />} />
+            <Route path="/jockeys" element={<JockeyPage />} />
             <Route path="/trainers" element={<TrainerPage />} />
             <Route path="/draw" element={<DrawPage />} />
             <Route path="/racecard" element={<RacecardPage />} />
