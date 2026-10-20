@@ -56,6 +56,8 @@ export default function HDAAnalysisPage() {
       if (r.data.error) setError(r.data.error); else setData(r.data);
     } catch (e) { setError(e.response?.data?.error || e.message); }
     finally { setLoading(false); }
+    // 刷新同時更新追蹤表（含中段收短）
+    loadYstats();
   };
 
   const exportExcel = () => {
