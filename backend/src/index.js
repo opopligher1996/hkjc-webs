@@ -3295,8 +3295,23 @@ const { scrape1x2, stats: oddsStats } = require('./football/titan1x2');
 const hdaService = require('./football/hdaService');
 const hdaDaily = require('./jobs/hdaDaily');
 hdaDaily.start();
+require('./jobs/oddsSnap').start();
 
 // GET /api/hda/track-stats — 三色賽事獨立統計（Y黃/G綠/B藍）
+// GET /api/hda/odds-snap?fb=FB7254 — 盤口軌跡快照
+app.get('/api/hda/odds-snap', async (req, res) => {
+  try {
+    const { fb } = req.query;
+    const { rows } = await pool.query(
+      `SELECT s.fb, t.home, t.away, t.side, t.result, s.snap_at, s.src,
+              s.h, s.d, s.a, s.ah_line, s.ah_odds
+       FROM hda_odds_snap s LEFT JOIN hda_track t ON t.fb = s.fb AND t.color='D'
+       ${fb ? 'WHERE s.fb = $1' : ''}
+       ORDER BY s.fb, s.snap_at`, fb ? [fb] : []);
+    res.json({ count: rows.length, snaps: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/hda/track-stats', async (req, res) => {
   try {
     const agg = await pool.query(
