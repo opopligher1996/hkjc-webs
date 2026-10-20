@@ -2705,6 +2705,55 @@ async function saveLocalResults(raceDate, racecourse, raceNo) {
   return splits;
 }
 
+// ── 移欄（賽道選用）：馬匹頁紀錄表「跑馬地草地"C+3"」格 ──
+// 谷草/田草有移欄・田泥（全天候）冇（記 'NA'）
+async function fetchMeetingRail(raceDate, racecourse) {
+  const pool = require('../db/pool');
+  const { rows: cand } = await pool.query(
+    `SELECT DISTINCT horse_name FROM race_records
+     WHERE race_date = $1 AND racecourse = $2 AND rail IS NULL AND horse_name IS NOT NULL LIMIT 10`,
+    [raceDate, racecourse]);
+  let updated = 0;
+  for (const c of cand) {
+    try {
+      const { rows: hr } = await pool.query('SELECT id FROM horses WHERE name_zh = $1 LIMIT 1', [c.horse_name]);
+      if (!hr[0]?.id) continue;
+      const no = hr[0].id.split('_').pop();
+      const resp = await axios.get(
+        `https://racing.hkjc.com/zh-hk/local/information/horse?HorseNo=${no}`,
+        { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+      const $ = cheerio.load(resp.data);
+      // 每行搵 日期格 + 場地+賽道格
+      $('tr').each((_, tr) => {
+        if (updated) return;
+        const tds = $(tr).find('td');
+        let dateCell = null, cell = null;
+        tds.each((__, td) => {
+          const t = $(td).text().trim();
+          if (/^\d{2}\/\d{2}\/\d{2}$/.test(t)) dateCell = t;
+          if (/(跑馬地|沙田)(草地|全天候)/.test(t)) cell = t;
+        });
+        if (!dateCell || !cell) return;
+        const [dd, mm, yy] = dateCell.split('/').map(Number);
+        const d = `20${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+        if (d !== String(raceDate).slice(0, 10)) return;
+        const crs = cell.includes('跑馬地') ? 'HV' : cell.includes('沙田') ? 'ST' : null;
+        if (crs !== racecourse) return;
+        const track = cell.includes('草地') ? 'TURF' : 'AWT';
+        const rm = cell.match(/"([A-C]\+?\d*)"/);
+        const rail = track === 'AWT' ? 'NA' : (rm ? rm[1] : null);
+        if (!rail) return;
+        pool.query(
+          `UPDATE race_records SET rail = $1 WHERE race_date = $2 AND racecourse = $3 AND track_type = $4 AND rail IS NULL`,
+          [rail, d, crs, track])
+          .then(r => { updated += r.rowCount; }).catch(() => {});
+      });
+      if (updated) break;
+    } catch (_) {}
+  }
+  return updated;
+}
+
 module.exports = {
   scrapeJockeyList,
   scrapeJockeyPastRec,
@@ -2736,6 +2785,7 @@ module.exports = {
   saveSectionalTime,
   scrapeVetRecord,
   scrapeTrackwork,
+  fetchMeetingRail,
   scrapeLocalResults,
   saveLocalResults,
   scrapeRaceCountFromLocalResults,

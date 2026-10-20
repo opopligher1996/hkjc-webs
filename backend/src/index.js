@@ -4355,6 +4355,8 @@ app.post('/api/backfill/race-results', async (req, res) => {
           if (result.races && result.races.length > 0) {
             const cnt = await scraper.saveRaceRecords(fx.date, fx.racecourse, result.races);
             saved += cnt;
+            // 同步補移欄
+            scraper.fetchMeetingRail(fx.date, fx.racecourse).catch(() => {});
           } else {
             skipped++;
           }

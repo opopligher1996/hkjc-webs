@@ -216,6 +216,23 @@ function setupJobs() {
   // 06:00 HKT — 更新未來賽事晨操紀錄（試閘 / 騎師親試）
   cron.schedule('0 6 * * *', jobTrackwork, { timezone: 'Asia/Hong_Kong' });
   log('setup', '晨操紀錄自動更新已排程: 每日 06:00 HKT');
+
+  // 07:30 HKT — 補近 3 日賽事移欄（谷草/田草有・田泥 NA）
+  cron.schedule('30 7 * * *', async () => {
+    try {
+      const pool = require('../db/pool');
+      const scraper = require('../scrapers/hkjc');
+      const { rows } = await pool.query(
+        `SELECT DISTINCT race_date, racecourse FROM race_records
+         WHERE rail IS NULL AND track_type IS NOT NULL AND race_date >= CURRENT_DATE - 3`);
+      for (const r of rows) {
+        const d = r.race_date instanceof Date ? r.race_date.toISOString().slice(0, 10) : String(r.race_date);
+        const n = await scraper.fetchMeetingRail(d, r.racecourse);
+        if (n) log('rail', `${d} ${r.racecourse} 補移欄 ${n} 行`);
+      }
+    } catch (e) { log('rail', 'FAIL: ' + e.message); }
+  }, { timezone: 'Asia/Hong_Kong' });
+  log('setup', '移欄自動補抓已排程: 每日 07:30 HKT');
 }
 
 module.exports = { setupJobs };
