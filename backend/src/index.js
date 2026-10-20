@@ -3348,10 +3348,38 @@ app.get('/api/hda/track-stats', async (req, res) => {
     for (const r of bench.rows) {
       byBench[`${r.color}:${r.bench}`] = { n: +r.n, hits: +r.hits, hitRate: +(r.hits / r.n).toFixed(4) };
     }
+    // 每場「中段最大收短%」（走勢快照計算：hist=每莊open→min・live=快照流）
+    let dropMap = {};
+    try {
+      const fbs = detail.map(r => r.fb);
+      const { rows: snaps } = await pool.query(
+        `SELECT fb, src, company, snap_at, h, d, a FROM hda_odds_snap WHERE fb = ANY($1) ORDER BY snap_at`, [fbs]);
+      const byFb = {};
+      for (const s of snaps) (byFb[s.fb] = byFb[s.fb] || []).push(s);
+      for (const [fb, list] of Object.entries(byFb)) {
+        const t = detail.find(r => r.fb === fb);
+        if (!t) continue;
+        const si = { H: 0, D: 1, A: 2 }[t.side];
+        const streams = {};
+        for (const s of list) {
+          const key = s.src === 'hist' ? 'hist:' + s.company : s.src;
+          const v = [s.h, s.d, s.a].map(Number)[si];
+          if (!v || v <= 1) continue;
+          (streams[key] = streams[key] || []).push(v);
+        }
+        const drops = Object.values(streams)
+          .filter(vs => vs.length >= 2)
+          .map(vs => {
+            const open = vs[0], min = Math.min(...vs);
+            return (open - min) / open;
+          });
+        if (drops.length) dropMap[fb] = +(drops.reduce((a, b) => a + b, 0) / drops.length * 100).toFixed(1);
+      }
+    } catch (_) {}
     // 顯示名轉繁體
     const { tcOne, refreshTcMap } = require('./football/tcNames');
     await refreshTcMap();
-    const detailTc = detail.map(r => ({ ...r, home: tcOne(r.home), away: tcOne(r.away) }));
+    const detailTc = detail.map(r => ({ ...r, home: tcOne(r.home), away: tcOne(r.away), maxDrop: dropMap[r.fb] ?? null }));
     res.json({ byColor, byBench, matches: detailTc, job: hdaDaily.jobState });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

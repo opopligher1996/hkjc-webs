@@ -845,6 +845,7 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
               <th style={td}>回報率</th>
               {gapFilter && <th style={td}>gap</th>}
               {gapFilter && <th style={td}>對手比</th>}
+              {gapFilter && <th style={td} title="中段最大收短%（走勢快照）">中段收短</th>}
               <th style={td}>結果</th>
               <th style={td}>中</th>
               <th style={td}>馬會亞洲盤</th>
@@ -905,6 +906,7 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                       <>
                         <td style={td}><span style={{ color: '#b9c2d0', letterSpacing: 1 }}>★★★</span></td>
                         <td style={td}><span style={{ color: '#b9c2d0', letterSpacing: 1 }}>★★★</span></td>
+                        <td style={td}><span style={{ color: '#b9c2d0', letterSpacing: 1 }}>★★★</span></td>
                       </>
                     );
                   }
@@ -928,6 +930,17 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                         fontWeight: oppRatio != null && oppRatio > 2.2 ? 800 : 400 }}>
                         {oppRatio != null ? oppRatio.toFixed(2) : '—'}
                       </td>
+                      {(() => {
+                        const d = y.maxDrop;
+                        if (d == null) return <td style={td}><span className="ai-muted">—</span></td>;
+                        const bucket = d >= 8 ? '≥8%' : d >= 5 ? '5-8%' : d >= 2 ? '2-5%' : '<2%';
+                        const color = d >= 8 ? '#c0392b' : d >= 5 ? '#b8860b' : d >= 2 ? '#1e7e34' : '#889';
+                        return (
+                          <td style={{ ...td, fontFamily: 'monospace', fontWeight: 700, color }} title={'中段最大收短 ' + d + '%（2-5%組回測100%・≥8%組73%）'}>
+                            {bucket}
+                          </td>
+                        );
+                      })()}
                     </>
                   );
                 })()}
@@ -969,7 +982,7 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                 const eTh = { padding: '5px 8px', background: '#032169', color: '#fff', fontSize: '0.68rem', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' };
                 return (
                 <tr>
-                  <td colSpan={gapFilter ? 14 : 12} style={{ padding: '8px 12px', background: '#f4f7ff', borderBottom: '2px solid #c8d4ea' }}>
+                  <td colSpan={gapFilter ? 15 : 12} style={{ padding: '8px 12px', background: '#f4f7ff', borderBottom: '2px solid #c8d4ea' }}>
                     <div style={{ fontSize: '0.7rem', color: '#889', marginBottom: 6 }}>📊 該場完整主客和數據</div>
                     <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', minWidth: 1200 }}>
