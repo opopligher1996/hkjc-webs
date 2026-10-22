@@ -326,7 +326,10 @@ export default function HDAAnalysisPage() {
                   <td style={{ padding: '6px 8px', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
                     {`${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${m.time}`}
                   </td>
-                  <td style={{ padding: '6px 8px', fontSize: '0.75rem', color: '#556', whiteSpace: 'nowrap' }}>{m.leagueCn || k?.league || '—'}</td>
+                  <td style={{ padding: '6px 8px', fontSize: '0.75rem', color: '#556', whiteSpace: 'nowrap' }}>
+                    {m.leagueCn || k?.league || '—'}
+                    {m.leagueN >= 3 && <span title={`⚠ 同日同聯賽有 ${m.leagueN} 場訊號 — 相關性風險・建議最多買 2 場`} style={{ color: '#c0392b', fontWeight: 800 }}> ⚠{m.leagueN}</span>}
+                  </td>
                   <td style={{ padding: '6px 8px', fontWeight: 600 }}>{m.home}</td>
                   <td style={{ padding: '6px 8px', fontWeight: 600 }}>{m.away}</td>
                   {hasOdds ? (
@@ -862,7 +865,10 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                 onClick={() => setOpenFb(openFb === y.fb ? null : y.fb)}
               >
                 <td style={td}>{openFb === y.fb ? '▾' : '▸'} {y.match_date?.slice(5, 10)} {y.kickoff}</td>
-                <td style={{ ...td, color: '#556', fontSize: '0.7rem' }}>{y.league || '—'}</td>
+                <td style={{ ...td, color: '#556', fontSize: '0.7rem' }}>
+                  {y.league || '—'}
+                  {y.leagueN >= 3 && <span title={`⚠ 同日同聯賽有 ${y.leagueN} 場訊號 — 相關性風險・建議最多買 2 場`} style={{ color: '#c0392b', fontWeight: 800 }}> ⚠{y.leagueN}</span>}
+                </td>
                 <td style={td}>
                   {y.home} vs {y.away}
                   {qualityMarks && (() => {

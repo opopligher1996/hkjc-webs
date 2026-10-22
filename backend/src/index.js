@@ -3385,6 +3385,19 @@ app.get('/api/hda/track-stats', async (req, res) => {
         if (drops.length) dropMap[fb] = +(drops.reduce((a, b) => a + b, 0) / drops.length * 100).toFixed(1);
       }
     } catch (_) {}
+    // 未結算訊號場同日同聯賽集中度（D/S/W）
+    const fmtD = d => (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10);
+    const lgPending = {};
+    for (const r of detail) {
+      if (r.result || !['D', 'S', 'W'].includes(r.color)) continue;
+      const key = fmtD(r.match_date) + '|' + (r.league || '?');
+      lgPending[key] = (lgPending[key] || 0) + 1;
+    }
+    for (const r of detail) {
+      if (!r.result && ['D', 'S', 'W'].includes(r.color)) {
+        r.leagueN = lgPending[fmtD(r.match_date) + '|' + (r.league || '?')] || 0;
+      }
+    }
     // 顯示名轉繁體
     const { tcOne, refreshTcMap } = require('./football/tcNames');
     await refreshTcMap();
@@ -3823,6 +3836,18 @@ app.get('/api/hda/upcoming', async (req, res) => {
         } catch (_) {}
       }
       matches.push({ ...r, odds: o, sim, hk33: k, yellow, green, deep, strong, white, deepOld, bad: bad?.n ? { n: bad.n, rateH: bad.rateH, rateD: bad.rateD, rateA: bad.rateA, roiH: bad.roiH, roiD: bad.roiD, roiA: bad.roiA } : null });
+    }
+    // 同日同聯賽集中度（可投注訊號 D/S/W）— 相關性風險警示
+    const lgCount = {};
+    for (const m of matches) {
+      if (!(m.deep || m.deepOld || m.strong || m.white)) continue;
+      const key = (m.date || '') + '|' + (m.leagueCn || '?');
+      lgCount[key] = (lgCount[key] || 0) + 1;
+    }
+    for (const m of matches) {
+      if (m.deep || m.deepOld || m.strong || m.white) {
+        m.leagueN = lgCount[(m.date || '') + '|' + (m.leagueCn || '?')] || 0;
+      }
     }
     // 自動捕捉新嘅黃/綠入庫（summary 即時更新；已存在唔會重寫）
     try { await hdaDaily.captureYellows({ rows: matches }); } catch (_) {}
