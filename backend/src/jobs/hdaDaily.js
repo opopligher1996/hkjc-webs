@@ -81,6 +81,7 @@ async function captureYellows(view) {
     { key: 'deep', code: 'D' },
     { key: 'strong', code: 'S' },
     { key: 'white', code: 'W' },
+    { key: 'awayHot', code: 'F' },
   ];
   for (const m of view.rows) {
     const o = m.odds, k0 = m.hk33, sim = m.sim;
@@ -100,8 +101,8 @@ async function captureYellows(view) {
       let hit = c.code === 'D' ? (m.deepOld || m.deep) : m[c.key];
       if (!hit) continue;
       const i = hit.idx;
-      // 舊計法深綠用壞池 n/rate/roi・其他用 HK33/sim
-      const isBad = c.code === 'D' && m.deepOld && hit === m.deepOld;
+      // 舊計法深綠/客熱門用壞池 n/rate/roi・其他用 HK33/sim
+      const isBad = (c.code === 'D' && m.deepOld && hit === m.deepOld) || (c.code === 'F' && m.awayHot);
       const useN = isBad ? (m.bad?.n ?? null) : n;
       const useRateArr = isBad
         ? (m.bad && m.bad.n >= 30 ? [m.bad.rateH, m.bad.rateD, m.bad.rateA] : null)

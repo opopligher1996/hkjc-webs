@@ -355,6 +355,26 @@ function detectWhite(vh, vd, va, sdAry, cvAry, rates, n) {
   return null;
 }
 
+// ✈️ 客熱門：合一客隊 @1.45-1.65 + 深綠六條件（壞池）
+// 乾淨回測：n=20・80%開出・ROI +20.3%（純客熱zone係73.3%）
+function detectAwayHot(vh, vd, va, sdAry, cvAry, rates, rois, n) {
+  if (rates == null || rates.some(r => r == null)) return null;
+  if (n == null || n < 30) return null;
+  if (!sdAry || sdAry.some(x => x == null || x === 0)) return null;
+  if (!cvAry || cvAry.some(x => x == null || x === 0)) return null;
+  if (!(va < vh && va < vd)) return null;                      // 客賠最低
+  if (!(sdAry[2] <= sdAry[0] && sdAry[2] <= sdAry[1])) return null;
+  if (!(cvAry[2] <= cvAry[0] && cvAry[2] <= cvAry[1])) return null;
+  if (!(va >= 1.45 && va < 1.65)) return null;                 // 甜蜜zone
+  const inv = 1/vh + 1/vd + 1/va;
+  const exp = [vh, vd, va].map(x => (1/x) / inv);
+  if (!(exp[2] > rates[2])) return null;                       // gap>0
+  if (!(exp[2] - rates[2] >= 0.13)) return null;               // gap≥13pp
+  if (!(rois[2] < -0.10)) return null;
+  if (!(exp[0] < rates[0] && exp[1] < rates[1])) return null;  // 對手壓制
+  return { idx: 2, side: 'A', exp: exp[2], rate: rates[2] };
+}
+
 async function getMergedView(tol = 0.10) {
   const up = await buildUpcoming();
   const ids = up.rows.filter(r => r.titanId).map(r => r.titanId);
@@ -395,18 +415,19 @@ async function getMergedView(tol = 0.10) {
       white = detectWhite(vh, vd, va, sdAry, cvAry, rates, n);
     }
     // 舊法深綠：壞基準池 6 條件（只行 titan odds 場）— 每日 job 都要捕捉
-    let deepOld = null, bad = null;
+    let deepOld = null, bad = null, awayHot = null;
     if (vh != null && sdAry && o?.open_h) {
       try {
         bad = await similarStatsBad(+o.open_h, +o.open_d, +o.open_a, 0.10);
         if (bad.n >= 30) {
           deepOld = detectDeepOld(vh, vd, va, sdAry, cvAry, [bad.rateH, bad.rateD, bad.rateA], [bad.roiH, bad.roiD, bad.roiA], bad.n);
+          awayHot = detectAwayHot(vh, vd, va, sdAry, cvAry, [bad.rateH, bad.rateD, bad.rateA], [bad.roiH, bad.roiD, bad.roiA], bad.n);
         }
       } catch (_) {}
     }
-    out.push({ ...r, odds: o, hk33: k, yellow, green, deep, strong, white, deepOld, bad: bad?.n ? { n: bad.n, rateH: bad.rateH, rateD: bad.rateD, rateA: bad.rateA, roiH: bad.roiH, roiD: bad.roiD, roiA: bad.roiA } : null, sim: (!k && n != null && rates) ? { n, rateH: rates[0], rateD: rates[1], rateA: rates[2], roiH: rois[0], roiD: rois[1], roiA: rois[2] } : null });
+    out.push({ ...r, odds: o, hk33: k, yellow, green, deep, strong, white, deepOld, awayHot, bad: bad?.n ? { n: bad.n, rateH: bad.rateH, rateD: bad.rateD, rateA: bad.rateA, roiH: bad.roiH, roiD: bad.roiD, roiA: bad.roiA } : null, sim: (!k && n != null && rates) ? { n, rateH: rates[0], rateD: rates[1], rateA: rates[2], roiH: rois[0], roiD: rois[1], roiA: rois[2] } : null });
   }
   return { rows: out, at: up.at };
 }
 
-module.exports = { buildUpcoming, runBatch, batchState, s2t, nameSim, similarStats, similarStatsBad, scrapeOne, getMergedView, detectYellow, detectGreenBlue, detectWhite, detectDeepOld, refreshAliasMap, learnAlias };
+module.exports = { buildUpcoming, runBatch, batchState, s2t, nameSim, similarStats, similarStatsBad, scrapeOne, getMergedView, detectYellow, detectGreenBlue, detectWhite, detectDeepOld, detectAwayHot, refreshAliasMap, learnAlias };

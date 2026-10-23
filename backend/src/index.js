@@ -3389,12 +3389,12 @@ app.get('/api/hda/track-stats', async (req, res) => {
     const fmtD = d => (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10);
     const lgPending = {};
     for (const r of detail) {
-      if (r.result || !['D', 'S', 'W'].includes(r.color)) continue;
+      if (r.result || !['D', 'S', 'W', 'F'].includes(r.color)) continue;
       const key = fmtD(r.match_date) + '|' + (r.league || '?');
       lgPending[key] = (lgPending[key] || 0) + 1;
     }
     for (const r of detail) {
-      if (!r.result && ['D', 'S', 'W'].includes(r.color)) {
+      if (!r.result && ['D', 'S', 'W', 'F'].includes(r.color)) {
         r.leagueN = lgPending[fmtD(r.match_date) + '|' + (r.league || '?')] || 0;
       }
     }
@@ -3819,33 +3819,34 @@ app.get('/api/hda/upcoming', async (req, res) => {
       const n = k ? k.n : (useSim && sim ? sim.n : null);
       const rates = k ? [k.rateH, k.rateD, k.rateA] : (useSim && sim ? [sim.rateH, sim.rateD, sim.rateA] : null);
       const rois = k ? [k.roiH, k.roiD, k.roiA] : (useSim && sim ? [sim.roiH, sim.roiD, sim.roiA] : null);
-      let yellow = null, green = null, deep = null, white = null, strong = null, deepOld = null, bad = null;
+      let yellow = null, green = null, deep = null, white = null, strong = null, deepOld = null, awayHot = null, bad = null;
       if (vh != null && sdAry && n != null && rates) {
         yellow = hdaService.detectYellow(vh, vd, va, sdAry, cvAry, n, rates, rois);
         const gb = hdaService.detectGreenBlue(vh, vd, va, sdAry, cvAry, rates, rois, n);
         green = gb.green; deep = gb.deep; strong = gb.strong;
         white = hdaService.detectWhite(vh, vd, va, sdAry, cvAry, rates, n);
       }
-      // 舊法深綠：壞基準池 6 條件（只行 titan odds 場）
+      // 舊法深綠 + 客熱門：壞基準池（只行 titan odds 場）
       if (vh != null && sdAry && o?.open_h) {
         try {
           bad = await hdaService.similarStatsBad(+o.open_h, +o.open_d, +o.open_a, tol);
           if (bad.n >= 30) {
             deepOld = hdaService.detectDeepOld(vh, vd, va, sdAry, cvAry, [bad.rateH, bad.rateD, bad.rateA], [bad.roiH, bad.roiD, bad.roiA], bad.n);
+            awayHot = hdaService.detectAwayHot(vh, vd, va, sdAry, cvAry, [bad.rateH, bad.rateD, bad.rateA], [bad.roiH, bad.roiD, bad.roiA], bad.n);
           }
         } catch (_) {}
       }
-      matches.push({ ...r, odds: o, sim, hk33: k, yellow, green, deep, strong, white, deepOld, bad: bad?.n ? { n: bad.n, rateH: bad.rateH, rateD: bad.rateD, rateA: bad.rateA, roiH: bad.roiH, roiD: bad.roiD, roiA: bad.roiA } : null });
+      matches.push({ ...r, odds: o, sim, hk33: k, yellow, green, deep, strong, white, deepOld, awayHot, bad: bad?.n ? { n: bad.n, rateH: bad.rateH, rateD: bad.rateD, rateA: bad.rateA, roiH: bad.roiH, roiD: bad.roiD, roiA: bad.roiA } : null });
     }
     // 同日同聯賽集中度（可投注訊號 D/S/W）— 相關性風險警示
     const lgCount = {};
     for (const m of matches) {
-      if (!(m.deep || m.deepOld || m.strong || m.white)) continue;
+      if (!(m.deep || m.deepOld || m.strong || m.white || m.awayHot)) continue;
       const key = (m.date || '') + '|' + (m.leagueCn || '?');
       lgCount[key] = (lgCount[key] || 0) + 1;
     }
     for (const m of matches) {
-      if (m.deep || m.deepOld || m.strong || m.white) {
+      if (m.deep || m.deepOld || m.strong || m.white || m.awayHot) {
         m.leagueN = lgCount[(m.date || '') + '|' + (m.leagueCn || '?')] || 0;
       }
     }
