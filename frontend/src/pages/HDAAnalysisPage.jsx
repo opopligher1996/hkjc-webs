@@ -208,7 +208,7 @@ export default function HDAAnalysisPage() {
         {ystats ? (
           <>
             <div className="ai-muted" style={{ fontSize: '0.72rem', marginTop: 4 }}>
-              🟨 黃 = 三項最低+比率≥50%+回報&lt;0%+場數≥30｜🟩 綠 = 三項最低+預計&gt;歷史+對方兩邊預計&lt;歷史+回報&lt;-10%+場數≥30｜🟢 深綠 = 綠格 + gap≥13pp（gap用舊基準池計・舊計法繼續累積統計）｜💚 強綠 = 綠格 + 賠率≤1.60｜🔵 藍 = 三項最低+賠率≤2.0+預計比歷史低5pp+（市場睇低=價值熱門）+場數&gt;30｜✈️ 客熱門 = 合一客隊 @1.45-1.65 + 深綠六條件（回測80%開出）｜🟪 紫 = 主≤1.6+客收盤受捧3%+→買客（完場後按收盤價入庫）
+              🟨 黃 = 三項最低+比率≥50%+回報&lt;0%+場數≥30｜🟩 綠 = 三項最低+預計&gt;歷史+對方兩邊預計&lt;歷史+回報&lt;-10%+場數≥30｜🟢 深綠 = 綠格 + gap≥13pp（gap用舊基準池計・舊計法繼續累積統計）｜💚 強綠 = 綠格 + 賠率≤1.60｜🔵 藍 = 三項最低+賠率≤2.0+預計比歷史低5pp+（市場睇低=價值熱門）+場數&gt;30｜🩷 客熱門 = 合一客隊 @1.45-1.65 + 深綠六條件（回測80%開出）｜🟪 紫 = 主≤1.6+客收盤受捧3%+→買客（完場後按收盤價入庫）
               {ystats.byBench && Object.keys(ystats.byBench).length > 0 && (
                 <span>｜開出率分組：{Object.entries(ystats.byBench).map(([k, v]) =>
                   `${{ 'Y:HK33': '黃·線上', 'Y:sim': '黃·自計', 'G:HK33': '綠·線上', 'G:sim': '綠·自計' }[k] || k} ${(v.hitRate * 100).toFixed(0)}%(${v.n})`).join('・')}</span>
@@ -219,7 +219,7 @@ export default function HDAAnalysisPage() {
             <TrackTable color="D" name="🟢 深綠格賽事" bg="#dcefdd" border="#5cb85c" stats={ystats.byColor?.D} matches={ystats.matches.filter(m => m.color === 'D')} fade gapFilter onAhEdit={setAhEdit} qualityMarks />
             <TrackTable color="S" name="💚 強綠格賽事" bg="#e0f2e9" border="#3fa376" stats={ystats.byColor?.S} matches={ystats.matches.filter(m => m.color === 'S')} fade onAhEdit={setAhEdit} />
             <TrackTable color="W" name="🔵 藍格賽事" bg="#e8f2fc" border="#5a9fd8" stats={ystats.byColor?.W} matches={ystats.matches.filter(m => m.color === 'W')} fade onAhEdit={setAhEdit} />
-            <TrackTable color="F" name="✈️ 客熱門賽事（合一客隊@1.45-1.65・回測80%）" bg="#fff0f5" border="#c4799a" stats={ystats.byColor?.F} matches={ystats.matches.filter(m => m.color === 'F')} fade onAhEdit={setAhEdit} />
+            <TrackTable color="F" name="🩷 客熱門賽事（合一客隊@1.45-1.65・回測80%）" bg="#fff0f5" border="#c4799a" stats={ystats.byColor?.F} matches={ystats.matches.filter(m => m.color === 'F')} fade onAhEdit={setAhEdit} />
             <TrackTable color="P" name="🟪 紫格賽事（主≤1.6+客收盤受捧3%+ → 買客）" bg="#f3eefa" border="#9b7fd4" stats={ystats.byColor?.P} matches={ystats.matches.filter(m => m.color === 'P')} onAhEdit={setAhEdit} />
             <BacktestTable />
             <GreenRegression />
@@ -320,7 +320,7 @@ export default function HDAAnalysisPage() {
                   <td style={{ padding: '6px 8px', whiteSpace: 'nowrap', fontWeight: 700, color: '#032169' }}>
                     {WD[d.getDay()]} {m.fb.replace('FB', '')}
                     {white && <span title="藍格">🔵</span>}
-                    {m.awayHot && <span title="客熱門（合一客隊@1.45-1.65+深綠條件）">✈️</span>}
+                    {m.awayHot && <span title="客熱門（合一客隊@1.45-1.65+深綠條件）" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: '50%', background: '#ffb3c6', color: '#c2185b', fontSize: '0.7rem', fontWeight: 900, marginLeft: 2 }}>✈</span>}
                     {strong && !deep && <span title="強綠格（綠格+賠率≤1.60）">💚</span>}
                     {green && <span title={deep ? '深綠格' : '綠格'}>{deep ? '🟢' : '🟩'}</span>}
                     {vh != null && vh <= 1.6 && <span title="紫格候選（主大熱・臨場睇客賠有冇跌3%+）">🟪</span>}
