@@ -205,15 +205,8 @@ export default function HDAAnalysisPage() {
             </span>
           )}
         </div>
-        {ystats ? (
-          <>
-            <div className="ai-muted" style={{ fontSize: '0.72rem', marginTop: 4 }}>
-              🟨 黃 = 三項最低+比率≥50%+回報&lt;0%+場數≥30｜🟩 綠 = 三項最低+預計&gt;歷史+對方兩邊預計&lt;歷史+回報&lt;-10%+場數≥30｜🟢 深綠 = 綠格 + gap≥13pp（gap用舊基準池計・舊計法繼續累積統計）｜💚 強綠 = 綠格 + 賠率≤1.60｜🔵 藍 = 三項最低+賠率≤2.0+預計比歷史低5pp+（市場睇低=價值熱門）+場數&gt;30｜{CIRCLE_MARK} 客熱門 = 合一客隊 @1.45-1.65 + 深綠六條件（回測80%開出）｜🟪 紫 = 主≤1.6+客收盤受捧3%+→買客（完場後按收盤價入庫）
-              {ystats.byBench && Object.keys(ystats.byBench).length > 0 && (
-                <span>｜開出率分組：{Object.entries(ystats.byBench).map(([k, v]) =>
-                  `${{ 'Y:HK33': '黃·線上', 'Y:sim': '黃·自計', 'G:HK33': '綠·線上', 'G:sim': '綠·自計' }[k] || k} ${(v.hitRate * 100).toFixed(0)}%(${v.n})`).join('・')}</span>
-              )}
-            </div>
+         {ystats ? (
+           <>
             <TrackTable color="Y" name="🟨 黃格賽事" bg="#fffbe6" border="#e6d47e" stats={ystats.byColor?.Y} matches={ystats.matches.filter(m => m.color === 'Y')} onAhEdit={setAhEdit} simpleRoiFilter />
             <TrackTable color="G" name="🟩 綠格賽事" bg="#f0f9f1" border="#b7dfc0" stats={ystats.byColor?.G} matches={ystats.matches.filter(m => m.color === 'G')} fade onAhEdit={setAhEdit} />
             <TrackTable color="D" name="🟢 深綠格賽事" bg="#dcefdd" border="#5cb85c" stats={ystats.byColor?.D} matches={ystats.matches.filter(m => m.color === 'D')} fade gapFilter onAhEdit={setAhEdit} qualityMarks />
