@@ -370,15 +370,9 @@ export default function HDAAnalysisPage() {
                 </tr>
               );
             })}
-          </tbody>
-        </table>
-      </div>
-      <div className="ai-muted" style={{ fontSize: '0.75rem', marginTop: 8, padding: '0 4px' }}>
-        🟩 綠格：同場賠率最低・SD 最低・CV 最低・場數 ≥30・開出比率最高・回報率最高（全部 ≤0 唔標）。
-        🟨 全行黃：某一邊賠率+SD+CV 三項最低 ✓ 開出 ≥50% ✓ 回報 &lt;0% ✓ 場數 ≥30 ✓。
-        🟢 全行淺綠：某一邊賠率/SD/CV 三項全場最低 ✓ 預計開出 &gt; 歷史開出 ✓ 對方兩邊預計開出 &lt; 歷史開出 ✓ 回報 &lt;-10% ✓ 場數 ≥30 ✓。
-        預計開出 = (1/賠率) ÷ Σ(1/三項賠率)。回報率 = 開出比率 × 初盤賠率 − 1。H 標記 = 線上基準數據。已爬取數據不會重新抓取或取代。
-      </div>
+           </tbody>
+         </table>
+       </div>
       </>)}
 
       {/* 馬會亞洲盤手動編輯 Modal */}
