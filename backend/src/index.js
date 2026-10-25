@@ -6,6 +6,9 @@ const { initDb } = require('./db/init');
 const scraper = require('./scrapers/hkjc');
 const { setupJobs } = require('./jobs/scheduler');
 
+process.on('unhandledRejection', (reason) => console.error('[unhandledRejection]', reason?.message || reason));
+process.on('uncaughtException', (err) => console.error('[uncaughtException]', err?.message || err));
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -2835,7 +2838,7 @@ app.post('/api/corner/scrape', async (req, res) => {
 app.get('/api/corner/scrape/status', (req, res) => res.json(cornerScrape.getStatus()));
 
 // ── 即場自動追蹤 ─────────────────────────────────────────────────────────────
-// POST /api/corner/track/start → 自動搵今日英超 → 每 30 秒刷新 titan007 → 即場預測
+// POST /api/corner/track/start → 自動搵今日英超 → 每 15 秒刷新 titan007 → 即場預測
 // GET  /api/corner/track/status → 所有場次最新數據 + 預測
 // POST /api/corner/track/stop
 const liveTracker = require('./jobs/liveTracker');
@@ -2847,7 +2850,7 @@ app.post('/api/corner/track/start', async (req, res) => {
     }
     const r = await liveTracker.start();
     if (r.error) return res.status(404).json(r);
-    res.json({ message: `開始追蹤 ${r.total} 場英超（每 30 秒自動更新）`, ...r });
+    res.json({ message: `開始追蹤 ${r.total} 場英超（每 15 秒自動更新）`, ...r });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

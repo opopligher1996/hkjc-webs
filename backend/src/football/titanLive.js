@@ -21,12 +21,12 @@ async function closeBrowser() {
 // 從 titan007 live 頁提取即場數據
 // 比重權威來源：「即時走勢」表最後一行（頁頭比分/分鐘可能係 stale cache）
 // 技術統計：限「本场技术统计」之後嘅段落（避開盤口數字）
-async function scrapeLiveMatch(titanId) {
+async function scrapeLiveMatch(titanId, _retry = true) {
   const page = await getPage();
   try {
     await page.setCacheEnabled(false);
     // ?_=timestamp 防 CDN 焗舊版
-    await page.goto(`https://live.titan007.com/detail/${titanId}sb.htm?_=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 15000 });
+    await page.goto(`https://live.titan007.com/detail/${titanId}sb.htm?_=${Date.now()}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
     await new Promise(r => setTimeout(r, 3000));
     return await page.evaluate(() => {
       const body = document.body.innerText;
@@ -48,10 +48,10 @@ async function scrapeLiveMatch(titanId) {
       let minute = last ? Math.max(last.minute, headerMin || 0) : headerMin;
       if (minute != null && minute > 95) minute = 95;
       const score = last ? { hg: last.hg, ag: last.ag } : null;
-      // 3) 技術統計段落
+      // 3) 技術統計（新格式：00049% 控球率 51%000・39 进攻 34・6(3) 射门(射正) 2(0)）
       const statIdx = body.indexOf('本场技术统计');
-      const statSec = statIdx >= 0 ? body.slice(statIdx, statIdx + 900) : '';
-      const num = (re) => { const m = statSec.match(re); return m ? { home: +m[1], away: +m[2] } : null; };
+      const statSec = statIdx >= 0 ? body.slice(statIdx, statIdx + 900) : body;
+      const num = (re) => { const m = body.match(re); return m ? { home: +m[1], away: +m[2] } : null; };
       const teams = (() => {
         const tm = title.match(/(.+?)VS(.+?)\(/);
         return tm ? { home: tm[1].trim(), away: tm[2].trim() } : null;
@@ -59,19 +59,33 @@ async function scrapeLiveMatch(titanId) {
       return {
         minute,
         score,
-        corners: num(/(\d+)角球(\d+)/),
-        possession: num(/(\d+)%控球率(\d+)%/),
-        shots: num(/(\d+)射门(\d+)/),
-        shotsOnTarget: num(/(\d+)射正(\d+)/),
-        dangerousAttacks: num(/(\d+)危险进攻(\d+)/),
+        corners: num(/(\d+)\s*角球\s*(\d+)/) || num(/(\d+)角球(\d+)/),
+        possession: num(/(\d{1,3})%\s*控球率\s*(\d{1,3})%/),
+        shots: num(/(\d+)\(?\d*\)?\s*射门\(?射正\)?\s*(\d+)/) || num(/(\d+)\((\d+)\)\s*射门\(射正\)\s*(\d+)\((\d+)\)/) ? (m => ({ home: +m[1], away: +m[3] }))(body.match(/(\d+)\((\d+)\)\s*射门\(射正\)\s*(\d+)\((\d+)\)/)) : null,
+        shotsOnTarget: (() => { const m = body.match(/(\d+)\((\d+)\)\s*射门\(射正\)\s*(\d+)\((\d+)\)/); return m ? { home: +m[2], away: +m[4] } : null; })(),
+        dangerousAttacks: (() => {
+          // 格式：...36(進攻away尾)18(home危攻) 危险进攻 14(away危攻)
+          let m = body.match(/(\d{1,2})(\d{1,2})\s*\n?\s*危险进攻\s*\n?\s*(\d{1,2})/);
+          if (m) return { home: +m[2], away: +m[3] };
+          m = body.match(/\s(\d{1,2})\s*危险进攻\s*(\d{1,2})\s/);
+          return m ? { home: +m[1], away: +m[2] } : null;
+        })(),
         teams,
         status: /完场|完賽|FT/.test(title + body.slice(0, 300)) ? 'finished'
           : last?.ht ? 'halftime'
           : minute != null ? 'live' : 'unknown',
       };
     });
+  } catch (e) {
+    // shared browser 可能攤咗 — 重建後試一次
+    try { await page.close(); } catch (_) {}
+    if (_retry) {
+      await closeBrowser();
+      return scrapeLiveMatch(titanId, false);
+    }
+    throw e;
   } finally {
-    await page.close();
+    try { await page.close(); } catch (_) {}
   }
 }
 

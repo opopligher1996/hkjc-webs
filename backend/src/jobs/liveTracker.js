@@ -1,5 +1,5 @@
 // ── 即場自動追蹤 job ───────────────────────────────────────────────────────
-// 自動搵今日英超賽事 → 每 30 秒刷新 titan007 live 頁 → 提取全部即場數據
+// 自動搵今日英超賽事 → 每 15 秒刷新 titan007 live 頁 → 提取全部即場數據
 // → 餵入 predictLive → 前端直接攞最新預測（唔使人手入任何嘢）
 const pool = require('../db/pool');
 const titanLive = require('../football/titanLive');
@@ -47,8 +47,8 @@ async function start() {
     // 3) 立即刷新一次
     await refresh();
 
-    // 4) 每 30 秒自動刷新
-    _interval = setInterval(refresh, 30000);
+    // 4) 每 15 秒自動刷新
+    _interval = setInterval(refresh, 15000);
 
     return { total: state.matches.length };
   } catch (e) {
@@ -68,10 +68,11 @@ function stop() {
 async function refresh() {
   if (!state.active) return;
   try {
-    // 每場獨立刷新
+    // 每場獨立刷新（單場失敗唔阻其他場）
     for (const m of state.matches) {
       if (m.data?.status === 'finished') continue;
-      const data = await titanLive.scrapeLiveMatch(m.titanId);
+      let data = null;
+      try { data = await titanLive.scrapeLiveMatch(m.titanId); } catch (_) { continue; }
       if (!data || data.minute == null) continue;
       m.data = data;
 
