@@ -45,7 +45,23 @@ async function scrapeLiveMatch(titanId, _retry = true) {
       const headerMinM = body.match(/(\d{1,3})'/);
       let headerMin = headerMinM ? +headerMinM[1] : null;
       if (headerMin != null && headerMin > 100) headerMin = null;
-      let minute = last ? Math.max(last.minute, headerMin || 0) : headerMin;
+      // 官方時間顯示（#mState）：45'/46'/90+2' — 最權威
+      const mStateEl = document.getElementById('mState');
+      const mStateTxt = mStateEl ? (mStateEl.textContent || '').trim() : null;
+      // 中场/完场 狀態字
+      const statePhase = mStateTxt && /[半完]/.test(mStateTxt) ? mStateTxt : null;
+      let minute = null;
+      if (mStateTxt) {
+        const mm = mStateTxt.match(/(\d{1,3})/);
+        minute = mm ? +mm[1] : null;
+        if (mStateTxt.includes('+')) {
+          const plus = mStateTxt.match(/\+(\d{1,2})/);
+          if (plus) minute = Math.min(90 + +plus[1], 95);
+        }
+        if (/中场|中場/.test(mStateTxt)) minute = 45;
+        if (/完场|完場/.test(mStateTxt)) minute = 90;
+      }
+      if (minute == null) minute = last ? Math.max(last.minute, headerMin || 0) : headerMin;
       if (minute != null && minute > 95) minute = 95;
       const score = last ? { hg: last.hg, ag: last.ag } : null;
       // 3) 技術統計（新格式：00049% 控球率 51%000・39 进攻 34・6(3) 射门(射正) 2(0)）
@@ -97,6 +113,18 @@ async function scrapeLiveMatch(titanId, _retry = true) {
           };
         })(),
         teams,
+        htScore: (() => {
+          const m2 = body.match(/\((\d+)-(\d+)\)\s*\n?\s*(?:半场|半場)?/);
+          return m2 ? { hg: +m2[1], ag: +m2[2] } : null;
+        })(),
+        phase: (() => {
+          const ms = document.getElementById('mState');
+          const t = ms ? (ms.textContent || '').trim() : '';
+          if (/完场|完場/.test(t)) return 'finished';
+          if (/中场|中場/.test(t)) return 'halftime';
+          if (t) return 'live';
+          return last?.ht ? 'halftime' : minute != null ? 'live' : 'unknown';
+        })(),
         status: /完场|完賽|FT/.test(title + body.slice(0, 300)) ? 'finished'
           : last?.ht ? 'halftime'
           : minute != null ? 'live' : 'unknown',
