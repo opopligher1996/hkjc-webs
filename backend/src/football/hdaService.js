@@ -355,8 +355,8 @@ function detectWhite(vh, vd, va, sdAry, cvAry, rates, n) {
   return null;
 }
 
-// ✈️ 客熱門：合一客隊 @1.45-1.65 + 深綠六條件（壞池）
-// 乾淨回測：n=20・80%開出・ROI +20.3%（純客熱zone係73.3%）
+// ✈️ 客熱門：合一客隊（任何賠率）+ 深綠六條件（壞池）
+// 乾淨回測 zone 內 80%・實戰 12/12（含 ◎○△ 三區）
 function detectAwayHot(vh, vd, va, sdAry, cvAry, rates, rois, n) {
   if (rates == null || rates.some(r => r == null)) return null;
   if (n == null || n < 30) return null;
@@ -365,7 +365,6 @@ function detectAwayHot(vh, vd, va, sdAry, cvAry, rates, rois, n) {
   if (!(va < vh && va < vd)) return null;                      // 客賠最低
   if (!(sdAry[2] <= sdAry[0] && sdAry[2] <= sdAry[1])) return null;
   if (!(cvAry[2] <= cvAry[0] && cvAry[2] <= cvAry[1])) return null;
-  if (!(va >= 1.45 && va < 1.65)) return null;                 // 甜蜜zone
   const inv = 1/vh + 1/vd + 1/va;
   const exp = [vh, vd, va].map(x => (1/x) / inv);
   if (!(exp[2] > rates[2])) return null;                       // gap>0
