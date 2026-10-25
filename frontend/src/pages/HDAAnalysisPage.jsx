@@ -888,8 +888,10 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                 <td style={{ ...td, fontWeight: 700 }}>
                   {{ H: '主', D: '和', A: '客' }[y.side]}
                   {y.color === 'F' && y.odds != null && (+y.odds >= 1.45 && +y.odds < 1.65
-                    ? <span title="1.45-1.65甜蜜zone內" style={{ color: '#c2185b', fontSize: '0.65rem', fontWeight: 900 }}> ◎</span>
-                    : <span title="zone外（開國樣本）" style={{ color: '#99a', fontSize: '0.65rem' }}> ○</span>)}
+                    ? <span title="◎ 甜蜜zone內（1.45-1.65）— 錯價核心" style={{ color: '#c2185b', fontSize: '0.65rem', fontWeight: 900 }}> ◎</span>
+                    : +y.odds < 1.45
+                    ? <span title="○ 低zone（<1.45）— 超短賠本來就該贏" style={{ color: '#99a', fontSize: '0.65rem' }}> ○</span>
+                    : <span title="△ 高zone（≥1.65）— 均勢場客熱・回測冇錯價（長期~46%）" style={{ color: '#b8860b', fontSize: '0.65rem', fontWeight: 700 }}> △</span>)}
                 </td>
                 <td style={{ ...td, fontFamily: 'monospace' }}>{y.odds}</td>
                 <td style={{ ...td, fontFamily: 'monospace' }}>
