@@ -59,26 +59,42 @@ async function scrapeLiveMatch(titanId, _retry = true) {
       return {
         minute,
         score,
-        corners: num(/(\d+)\s*角球\s*(\d+)/) || num(/(\d+)角球(\d+)/),
-        possession: (() => {
-          const m = body.match(/(\d{1,3})\s*%\s*控球率\s*(\d{1,3})\s*%/);
-          if (!m) return null;
-          let home = +m[1];
-          if (home > 100) {
-            const s2 = String(home);
-            home = +(s2.length >= 3 && +s2.slice(-3) <= 100 ? s2.slice(-3) : s2.slice(-2));
-          }
-          const away = +m[2];
-          return { home: home + away > 100 ? 100 - away : home, away };
+        // 結構化統計（.barbox class 精準解析 — 取代粘連 regex）
+        corners: (() => {
+          // 角球喺 venticons：home/away 各一個 span（順序：主隊排前）
+          const icons = [...document.querySelectorAll('[class*="venticons"] span')];
+          const c = icons.map(s2 => ({ t: s2.querySelector('img')?.title || '', v: (s2.textContent || '').trim() })).filter(x => x.t === '角球');
+          return c.length >= 2 ? { home: +c[0].v || 0, away: +c[1].v || 0 } : null;
         })(),
-        shots: num(/(\d+)\(?\d*\)?\s*射门\(?射正\)?\s*(\d+)/) || num(/(\d+)\((\d+)\)\s*射门\(射正\)\s*(\d+)\((\d+)\)/) ? (m => ({ home: +m[1], away: +m[3] }))(body.match(/(\d+)\((\d+)\)\s*射门\(射正\)\s*(\d+)\((\d+)\)/)) : null,
-        shotsOnTarget: (() => { const m = body.match(/(\d+)\((\d+)\)\s*射门\(射正\)\s*(\d+)\((\d+)\)/); return m ? { home: +m[2], away: +m[4] } : null; })(),
-        dangerousAttacks: (() => {
-          // 格式：...36(進攻away尾)18(home危攻) 危险进攻 14(away危攻)
-          let m = body.match(/(\d{1,2})(\d{1,2})\s*\n?\s*危险进攻\s*\n?\s*(\d{1,2})/);
-          if (m) return { home: +m[2], away: +m[3] };
-          m = body.match(/\s(\d{1,2})\s*危险进攻\s*(\d{1,2})\s/);
-          return m ? { home: +m[1], away: +m[2] } : null;
+        possession: null, shots: null, shotsOnTarget: null, dangerousAttacks: null,
+        ...(() => {
+          const map = {};
+          document.querySelectorAll('.barbox').forEach(b => {
+            const label = (b.querySelector('.data')?.textContent || '').trim();
+            const values = [...b.querySelectorAll('.value')].map(v => (v.textContent || '').trim());
+            if (!label || values.length < 2) return;
+            map[label] = { left: values[0], right: values[values.length - 1] };
+          });
+          const pair = (v) => {
+            if (!v) return null;
+            const l = parseFloat(v.left), r = parseFloat(v.right);
+            if (isNaN(l) || isNaN(r)) return null;
+            return { home: l, away: r };
+          };
+          const pos = map['控球率'];
+          const sh = map['射门(射正)'];
+          const dan = map['危险进攻'];
+          const pass = map['传球成功率'];
+          return {
+            possession: pos ? pair(pos) : null,
+            shots: sh ? pair(sh) : null,
+            shotsOnTarget: sh ? (() => {
+              const l = /\((\d+)\)/.exec(sh.left), r = /\((\d+)\)/.exec(sh.right);
+              return l && r ? { home: +l[1], away: +r[1] } : null;
+            })() : null,
+            dangerousAttacks: dan ? pair(dan) : null,
+            passAccuracy: pass ? pair(pass) : null,
+          };
         })(),
         teams,
         status: /完场|完賽|FT/.test(title + body.slice(0, 300)) ? 'finished'
