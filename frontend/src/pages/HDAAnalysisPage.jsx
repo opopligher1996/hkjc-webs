@@ -885,7 +885,12 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                     );
                   })()}
                 </td>
-                <td style={{ ...td, fontWeight: 700 }}>{{ H: '主', D: '和', A: '客' }[y.side]}</td>
+                <td style={{ ...td, fontWeight: 700 }}>
+                  {{ H: '主', D: '和', A: '客' }[y.side]}
+                  {y.color === 'F' && y.odds != null && (+y.odds >= 1.45 && +y.odds < 1.65
+                    ? <span title="1.45-1.65甜蜜zone內" style={{ color: '#c2185b', fontSize: '0.65rem', fontWeight: 900 }}> ◎</span>
+                    : <span title="zone外（開國樣本）" style={{ color: '#99a', fontSize: '0.65rem' }}> ○</span>)}
+                </td>
                 <td style={{ ...td, fontFamily: 'monospace' }}>{y.odds}</td>
                 <td style={{ ...td, fontFamily: 'monospace' }}>
                   {hideNums ? <span style={{ color: '#b9c2d0', letterSpacing: 1 }}>★★★</span>
