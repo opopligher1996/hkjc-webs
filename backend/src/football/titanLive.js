@@ -60,7 +60,17 @@ async function scrapeLiveMatch(titanId, _retry = true) {
         minute,
         score,
         corners: num(/(\d+)\s*角球\s*(\d+)/) || num(/(\d+)角球(\d+)/),
-        possession: num(/(\d{1,3})%\s*控球率\s*(\d{1,3})%/),
+        possession: (() => {
+          const m = body.match(/(\d{1,3})\s*%\s*控球率\s*(\d{1,3})\s*%/);
+          if (!m) return null;
+          let home = +m[1];
+          if (home > 100) {
+            const s2 = String(home);
+            home = +(s2.length >= 3 && +s2.slice(-3) <= 100 ? s2.slice(-3) : s2.slice(-2));
+          }
+          const away = +m[2];
+          return { home: home + away > 100 ? 100 - away : home, away };
+        })(),
         shots: num(/(\d+)\(?\d*\)?\s*射门\(?射正\)?\s*(\d+)/) || num(/(\d+)\((\d+)\)\s*射门\(射正\)\s*(\d+)\((\d+)\)/) ? (m => ({ home: +m[1], away: +m[3] }))(body.match(/(\d+)\((\d+)\)\s*射门\(射正\)\s*(\d+)\((\d+)\)/)) : null,
         shotsOnTarget: (() => { const m = body.match(/(\d+)\((\d+)\)\s*射门\(射正\)\s*(\d+)\((\d+)\)/); return m ? { home: +m[2], away: +m[4] } : null; })(),
         dangerousAttacks: (() => {
