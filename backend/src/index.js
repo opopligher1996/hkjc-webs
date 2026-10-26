@@ -3359,7 +3359,7 @@ setInterval(() => {
       exec("pkill -9 -f chrom", () => {});
     }
   });
-}, 30 * 60 * 1000);
+}, 5 * 60 * 1000);
 require('./jobs/oddsSnap').start();
 
 // GET /api/hda/track-stats — 三色賽事獨立統計（Y黃/G綠/B藍）

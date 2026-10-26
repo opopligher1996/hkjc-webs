@@ -8,7 +8,7 @@ let _browser = null;
 async function maybeRecycle() {
   // page 積超過 25 個 = 洩漏 → 重建 browser 防爆
   try {
-    if (_browser && (await _browser.pages()).length > 25) {
+    if (_browser && (await _browser.pages()).length > 10) {
       await closeBrowser();
     }
   } catch (_) { _browser = null; }
