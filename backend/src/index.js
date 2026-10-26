@@ -3010,6 +3010,13 @@ app.get('/api/ai-data/queries', async (req, res) => {
       { id: 18, title: '潘頓田草排1-3檔', note: '#8 擴闊版（不限途程）',
         sql: `${W} ${SEL} WHERE w.race_date >= $1 AND w.jockey_id='PZ' AND w.racecourse='ST'
                 AND w.track_type='TURF' AND w.draw BETWEEN 1 AND 3 ORDER BY w.race_date DESC` },
+      { id: 19, title: '希威森→周俊樂接手（沈集成・上仗6名內）', note: '實戰 3/3 全勝・全谷草・ROI+458%',
+        sql: `${W} ${SEL}
+              WHERE w.race_date >= $1 AND w.trainer_name = '沈集成'
+                AND w.prev_trainer = '沈集成'
+                AND w.prev_jockey = 'HEL' AND w.jockey_id = 'CJE'
+                AND w.prev_pos <= 6
+                ORDER BY w.race_date DESC` },
     ];
 
     const out = [];
@@ -3160,6 +3167,14 @@ app.get('/api/ai-data/upcoming', async (req, res) => {
         e.jockey_id === 'PZ' && last && last.jockey_id === 'PZ' && last.finish_position === 1 },
       { id: 18, title: '潘頓田草1-3檔', test: (e) =>
         e.jockey_id === 'PZ' && e.racecourse === 'ST' && e.track_type === 'TURF' && e.draw >= 1 && e.draw <= 3 },
+      { id: 19, title: '希威森→周俊樂接手（沈集成・上仗6名內）', test: (e) => {
+        const hist = histMap.get(e.horse_name) || [];
+        const last = hist[0];
+        if (!last) return false;
+        return e.trainer_name === '沈集成' && e.jockey_id === 'CJE'
+          && last.trainer_name === '沈集成' && last.jockey_id === 'HEL'
+          && last.finish_position <= 6;
+      } },
     ];
 
     const matches = [];
