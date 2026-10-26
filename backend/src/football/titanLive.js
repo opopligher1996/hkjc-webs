@@ -5,7 +5,17 @@ const puppeteer = require('puppeteer');
 const pool = require('../db/pool');
 
 let _browser = null;
+async function maybeRecycle() {
+  // page 積超過 25 個 = 洩漏 → 重建 browser 防爆
+  try {
+    if (_browser && (await _browser.pages()).length > 25) {
+      await closeBrowser();
+    }
+  } catch (_) { _browser = null; }
+}
+
 async function getPage() {
+  await maybeRecycle();
   if (!_browser) {
     _browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
   }

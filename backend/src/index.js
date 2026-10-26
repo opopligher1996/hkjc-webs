@@ -3307,6 +3307,17 @@ const { scrape1x2, stats: oddsStats } = require('./football/titan1x2');
 const hdaService = require('./football/hdaService');
 const hdaDaily = require('./jobs/hdaDaily');
 hdaDaily.start();
+// 每 30 分鐘檢查 Chrome 進程數 — >60 就強制清理（防 fork 耗盡）
+const { exec } = require('child_process');
+setInterval(() => {
+  exec("ps aux | grep -c chrom", (err, stdout) => {
+    const n = parseInt(stdout) || 0;
+    if (n > 60) {
+      console.error(`[chromeGuard] Chrome 進程 ${n} — 強制清理`);
+      exec("pkill -9 -f chrom", () => {});
+    }
+  });
+}, 30 * 60 * 1000);
 require('./jobs/oddsSnap').start();
 
 // GET /api/hda/track-stats — 三色賽事獨立統計（Y黃/G綠/B藍）
