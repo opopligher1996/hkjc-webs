@@ -1439,7 +1439,7 @@ app.get('/api/ai/jockey-changes', async (req, res) => {
 // Returns cross-horse stats for all races where jockey `to_id` took over from `from_id`.
 app.get('/api/ai/stats-jockey-handoff', async (req, res) => {
   try {
-    const { from_id, to_id } = req.query;
+    const { from_id, to_id, trainer } = req.query;
     if (!from_id || !to_id) return res.status(400).json({ error: 'from_id and to_id required' });
 
     // 1. Resolve jockey display names
@@ -1474,6 +1474,32 @@ app.get('/api/ai/stats-jockey-handoff', async (req, res) => {
     const places = rows.filter(r => r.finish_position <= 3).length;
     const horseSet = [...new Set(rows.map(r => r.horse_name))];
 
+    // 同練馬師數據（如指定 trainer）
+    let same_trainer = null;
+    if (trainer) {
+      const tRows = rows.filter(r => (r.trainer_name || '') === trainer);
+      const tWins = tRows.filter(r => r.finish_position === 1).length;
+      const tPlaces = tRows.filter(r => r.finish_position <= 3).length;
+      same_trainer = {
+        trainer,
+        total: tRows.length,
+        horse_count: [...new Set(tRows.map(r => r.horse_name))].length,
+        wins: tWins,
+        places: tPlaces,
+        win_rate: tRows.length ? Math.round(100 * tWins / tRows.length) + '%' : '—',
+        place_rate: tRows.length ? Math.round(100 * tPlaces / tRows.length) + '%' : '—',
+        recent: tRows.slice(0, 10).map(r => ({
+          horse_name: r.horse_name,
+          trainer_name: r.trainer_name || '—',
+          race_date: r.race_date,
+          race_no: r.race_no,
+          racecourse: COURSE_MAP[r.racecourse] || r.racecourse || '—',
+          win_odds: r.win_odds,
+          finish_position: r.finish_position,
+        })),
+      };
+    }
+
     // 3. Recent 10 records with racecourse mapped to Chinese
     const recent = rows.slice(0, 10).map(r => ({
       horse_name:       r.horse_name,
@@ -1497,6 +1523,7 @@ app.get('/api/ai/stats-jockey-handoff', async (req, res) => {
       place_rate:  fmtRate(places, total),
       horse_count: horseSet.length,
       recent,
+      same_trainer,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

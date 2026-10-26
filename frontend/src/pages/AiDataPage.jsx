@@ -362,9 +362,9 @@ function StatsBadge({ stats, label, color }) {
   );
 }
 
-function JockeyHandoffStats({ fromId, toId }) {
+function JockeyHandoffStats({ fromId, toId, trainerName }) {
   const { data, loading, error } = useStatsFetch(
-    '/ai/stats-jockey-handoff', { from_id: fromId, to_id: toId }, [fromId, toId]
+    '/ai/stats-jockey-handoff', { from_id: fromId, to_id: toId, trainer: trainerName || '' }, [fromId, toId, trainerName]
   );
   if (loading) return <td colSpan={9} style={{ padding: '10px 14px', color: '#999', fontSize: '0.83rem' }}>載入中...</td>;
   if (error)   return <td colSpan={9} style={{ padding: '10px 14px', color: '#dc3545', fontSize: '0.83rem' }}>{error}</td>;
@@ -387,6 +387,47 @@ function JockeyHandoffStats({ fromId, toId }) {
           </div>
         )}
       </div>
+      {/* 同練馬師數據 */}
+      {data.same_trainer && data.same_trainer.total > 0 && (
+        <div style={{ marginBottom: 10, background: '#eef7ee', borderRadius: 6, padding: '6px 10px' }}>
+          <div style={{ fontWeight: 700, fontSize: '0.78rem', color: '#145a23', marginBottom: 4 }}>
+            🏇 同練馬師數據：{data.same_trainer.trainer} 馬房（{data.from_name} → {data.to_name}）
+          </div>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: '0.78rem' }}>
+            <span>接手場次：<strong>{data.same_trainer.total}</strong></span>
+            <span>涉及馬匹：<strong>{data.same_trainer.horse_count}</strong> 匹</span>
+            <span style={{ color: '#28a745' }}>勝率：<strong>{data.same_trainer.win_rate}</strong>（{data.same_trainer.wins}勝）</span>
+            <span style={{ color: '#007bff' }}>位率：<strong>{data.same_trainer.place_rate}</strong>（{data.same_trainer.places}位）</span>
+          </div>
+          {data.same_trainer.recent && data.same_trainer.recent.length > 0 && (
+            <table style={{ borderCollapse: 'collapse', fontSize: '0.75rem', marginTop: 6, minWidth: 420 }}>
+              <thead>
+                <tr style={{ background: '#dcefe0' }}>
+                  {['日期','場次','馬名','馬場','賠率','名次'].map(h => (
+                    <th key={h} style={{ padding: '2px 8px', textAlign: (h==='馬名')?'left':'center', color: '#145a23', borderBottom: '1px solid #b5d4bb', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.same_trainer.recent.map((r, i) => {
+                  const isWin = r.finish_position === 1;
+                  const isPlace = r.finish_position <= 3;
+                  return (
+                    <tr key={i} style={{ background: i%2===0?'#fff':'#f2faf3' }}>
+                      <td style={{ padding: '2px 8px', textAlign: 'center' }}>{r.race_date}</td>
+                      <td style={{ padding: '2px 8px', textAlign: 'center' }}>R{r.race_no}</td>
+                      <td style={{ padding: '2px 8px' }}>{r.horse_name}</td>
+                      <td style={{ padding: '2px 8px', textAlign: 'center' }}>{r.racecourse}</td>
+                      <td style={{ padding: '2px 8px', textAlign: 'center', color: '#888' }}>{r.win_odds != null ? r.win_odds : '—'}</td>
+                      <td style={{ padding: '2px 8px', textAlign: 'center', fontWeight: isWin?700:400, color: isWin?'#28a745':isPlace?'#007bff':'#333' }}>{r.finish_position ?? '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
       {/* Recent records */}
       {data.recent && data.recent.length > 0 && (
         <div>
@@ -532,7 +573,7 @@ function JockeyChangesPanel() {
                     </tr>
                     {horse.changed && isExp && (
                       <tr style={{ background: '#f7f9ff', borderBottom: '2px solid #c0cce8' }}>
-                        <JockeyHandoffStats fromId={horse.prev_jockey_id} toId={horse.new_jockey_id} />
+                        <JockeyHandoffStats fromId={horse.prev_jockey_id} toId={horse.new_jockey_id} trainerName={horse.trainer_name} />
                       </tr>
                     )}
                   </React.Fragment>
