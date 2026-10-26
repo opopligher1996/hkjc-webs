@@ -159,7 +159,18 @@ const COLUMNS = [
     },
   },
   { key: 'draw', label: '檔位', width: 44 },
-  { key: 'jockey_name', label: '騎師', width: 76, left: true },
+  { key: 'jockey_name', label: '騎師', width: 76, left: true,
+    render: (v, h, openGear, ctx) => {
+      const changed = h.prev_jockey && v && h.prev_jockey !== v;
+      return changed
+        ? <span
+            onClick={() => ctx && ctx.openJockeyChange && ctx.openJockeyChange(h)}
+            style={{ cursor: 'pointer', color: '#b8860b', fontWeight: 700, textDecoration: 'underline', fontSize: '0.82em' }}
+            title={`換騎師：${h.prev_jockey} → ${v}・點擊睇接手統計`}
+          >{v} <span style={{ color: '#c0392b' }}>⇄</span></span>
+        : (v || <span style={{ color: '#bbb' }}>-</span>);
+    },
+  },
   {
     key: 'weight', label: '負磅', width: 74,
     render: (v, h) => (
@@ -344,6 +355,103 @@ const COLUMNS = [
       : <span style={{ color: '#bbb' }}>-</span>,
   },
 ];
+
+
+// ── 換騎師統計彈窗（含同練馬師數據）──
+function JockeyChangeModal({ horse, onClose }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get('/ai/stats-jockey-handoff', {
+      params: {
+        from_id: horse.prev_jockey_id || '',
+        to_id: horse.jockey_id || '',
+        trainer: horse.trainer_name || '',
+      },
+    })
+      .then(r => { if (!cancelled) { setData(r.data); setLoading(false); } })
+      .catch(e => { if (!cancelled) { setError(e.message); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [horse]);
+
+  const StatLine = ({ label, d, color }) => (
+    <span style={{ fontSize: '0.85rem' }}>
+      {label}：<strong style={{ color }}>{d && d.total > 0 ? `${d.win_rate}（${d.wins}/${d.total}）` : '冇記錄'}</strong>
+      <span style={{ color: '#888', marginLeft: 6 }}>{d && d.total > 0 ? `位率 ${d.place_rate}` : ''}</span>
+    </span>
+  );
+  const RecentTable = ({ recent }) => (
+    <table style={{ borderCollapse: 'collapse', fontSize: '0.8rem', marginTop: 6, minWidth: 420 }}>
+      <thead>
+        <tr style={{ background: '#e8eef8' }}>
+          {['日期','場次','馬名','馬場','賠率','名次'].map(h => (
+            <th key={h} style={{ padding: '3px 8px', textAlign: h === '馬名' ? 'left' : 'center', color: '#032169', borderBottom: '1px solid #c0cce8' }}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {recent.map((r, i) => {
+          const isWin = r.finish_position === 1;
+          const isPlace = r.finish_position <= 3;
+          return (
+            <tr key={i} style={{ background: i % 2 ? '#f0f4ff' : '#fff' }}>
+              <td style={{ padding: '3px 8px', textAlign: 'center' }}>{r.race_date}</td>
+              <td style={{ padding: '3px 8px', textAlign: 'center' }}>R{r.race_no}</td>
+              <td style={{ padding: '3px 8px' }}>{r.horse_name}</td>
+              <td style={{ padding: '3px 8px', textAlign: 'center' }}>{r.racecourse}</td>
+              <td style={{ padding: '3px 8px', textAlign: 'center', color: '#888' }}>{r.win_odds != null ? r.win_odds : '—'}</td>
+              <td style={{ padding: '3px 8px', textAlign: 'center', fontWeight: isWin ? 700 : 400, color: isWin ? '#28a745' : isPlace ? '#007bff' : '#333' }}>{r.finish_position ?? '—'}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '60px 20px', overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, maxWidth: 860, width: '100%', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', padding: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h3 style={{ margin: 0, color: '#032169', fontSize: '1.05rem' }}>
+            換騎師統計<span style={{ fontWeight: 400, color: '#888', fontSize: '0.85rem', marginLeft: 8 }}>{horse.horse_name}・{horse.trainer_name}</span>
+          </h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: '#666', lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ background: '#fffbe6', border: '1px solid #e6d47e', borderRadius: 6, padding: '8px 12px', marginBottom: 14, fontSize: '0.95rem' }}>
+          <b>{horse.prev_jockey}</b> <span style={{ color: '#c0392b', fontWeight: 900 }}>⇄</span> <b>{horse.jockey_name}</b>
+          <span style={{ color: '#888', marginLeft: 10, fontSize: '0.85rem' }}>上仗：{horse.prev_race_date || '—'} {horse.prev_pos ? horse.prev_pos + '位' : ''}</span>
+        </div>
+        {loading && <div style={{ color: '#999', padding: 10 }}>載入中…</div>}
+        {error && <div style={{ color: '#dc3545', padding: 10 }}>{error}</div>}
+        {data && (
+          <>
+            <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 14 }}>
+              <StatLine label="全部接手" d={data} color="#032169" />
+              {data.same_trainer && data.same_trainer.total > 0 && (
+                <StatLine label={`同馬房（${horse.trainer_name}）`} d={data.same_trainer} color="#145a23" />
+              )}
+            </div>
+            {data.recent && data.recent.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#032169', marginBottom: 4 }}>近期接手記錄</div>
+                <RecentTable recent={data.recent} />
+              </div>
+            )}
+            {data.same_trainer && data.same_trainer.recent && data.same_trainer.recent.length > 0 && (
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.85rem', color: '#145a23', marginBottom: 4 }}>同馬房接手記錄（{horse.trainer_name}）</div>
+                <RecentTable recent={data.same_trainer.recent} />
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function GearStatsModal({ horse, onClose }) {
   const [data, setData] = useState(null);
@@ -731,6 +839,7 @@ export default function AdvancedRacecardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [gearModal, setGearModal] = useState(null);
+  const [jockeyChangeModal, setJockeyChangeModal] = useState(null);
   const [jtModal, setJtModal] = useState(null);
   const [pdfBusy, setPdfBusy] = useState(false);
 
@@ -1026,6 +1135,7 @@ export default function AdvancedRacecardPage() {
                                       raceNo: currentRace.race_no,
                                       reloadSilent: () => loadRacecard(raceData.date, { silent: true }),
                                       openJt: setJtModal,
+                                      openJockeyChange: setJockeyChangeModal,
                                     })
                                   : (h[c.key] ?? <span style={{ color: '#bbb' }}>-</span>)}
                               </td>
@@ -1045,6 +1155,7 @@ export default function AdvancedRacecardPage() {
       )}
 
       {gearModal && <GearStatsModal horse={gearModal} onClose={() => setGearModal(null)} />}
+      {jockeyChangeModal && <JockeyChangeModal horse={jockeyChangeModal} onClose={() => setJockeyChangeModal(null)} />}
       {jtModal && (
         <JTModal info={jtModal} seasonSince={raceData?.sstart} onClose={() => setJtModal(null)} />
       )}

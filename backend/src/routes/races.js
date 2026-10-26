@@ -540,6 +540,7 @@ router.get('/advanced', async (req, res) => {
         prev_pos: p?.finish_position ?? null,
         prev_runners: p?.total_runners ?? null,
         prev_jockey: p?.prev_jockey_name || p?.jockey_id || null,
+        prev_jockey_id: p?.jockey_id || null,
         prev_ground: prevGround,
         prev_distance: p?.distance ?? null,
         prev_race_date: prevDate,
