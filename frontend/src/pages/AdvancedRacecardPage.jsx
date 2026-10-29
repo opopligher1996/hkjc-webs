@@ -384,11 +384,11 @@ function JockeyChangeModal({ horse, onClose }) {
     </span>
   );
   const RecentTable = ({ recent }) => (
-    <table style={{ borderCollapse: 'collapse', fontSize: '0.8rem', marginTop: 6, minWidth: 420 }}>
+    <table style={{ borderCollapse: 'collapse', fontSize: '0.8rem', marginTop: 6, minWidth: 480 }}>
       <thead>
         <tr style={{ background: '#e8eef8' }}>
-          {['日期','場次','馬名','馬場','賠率','名次'].map(h => (
-            <th key={h} style={{ padding: '3px 8px', textAlign: h === '馬名' ? 'left' : 'center', color: '#032169', borderBottom: '1px solid #c0cce8' }}>{h}</th>
+          {['日期','場次','馬名','馬場','練馬師','賠率','名次'].map(h => (
+            <th key={h} style={{ padding: '3px 8px', textAlign: (h === '馬名' || h === '練馬師') ? 'left' : 'center', color: '#032169', borderBottom: '1px solid #c0cce8' }}>{h}</th>
           ))}
         </tr>
       </thead>
@@ -402,6 +402,7 @@ function JockeyChangeModal({ horse, onClose }) {
               <td style={{ padding: '3px 8px', textAlign: 'center' }}>R{r.race_no}</td>
               <td style={{ padding: '3px 8px' }}>{r.horse_name}</td>
               <td style={{ padding: '3px 8px', textAlign: 'center' }}>{r.racecourse}</td>
+              <td style={{ padding: '3px 8px', color: '#555' }}>{r.trainer_name || '—'}</td>
               <td style={{ padding: '3px 8px', textAlign: 'center', color: '#888' }}>{r.win_odds != null ? r.win_odds : '—'}</td>
               <td style={{ padding: '3px 8px', textAlign: 'center', fontWeight: isWin ? 700 : 400, color: isWin ? '#28a745' : isPlace ? '#007bff' : '#333' }}>{r.finish_position ?? '—'}</td>
             </tr>
