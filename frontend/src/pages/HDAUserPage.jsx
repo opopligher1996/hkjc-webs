@@ -837,7 +837,6 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
               <th style={td}>中</th>
               <th style={td}>馬會亞洲盤</th>
               <th style={td}>讓球勝負</th>
-              <th style={td}>中</th>
             </tr>
           </thead>
           <tbody>
