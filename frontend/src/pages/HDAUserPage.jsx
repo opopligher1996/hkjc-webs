@@ -776,7 +776,7 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
         </span>
       </summary>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
-        <label style={{ fontSize: '0.72rem', color: '#556', display: 'none' }}>勝出率
+        <label style={{ fontSize: '0.72rem', color: '#556' }}>勝出率
           <select style={selStyle} value={rateF} onChange={e => setRateF(e.target.value)}>
             <option value="all">全部</option>
             <option value="20-30">20-30%</option>
@@ -784,7 +784,16 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
             <option value="40+">40%以上</option>
            </select>
          </label>
-          {gapFilter && (
+        <label style={{ fontSize: '0.72rem', color: '#556' }}>回報率（不中機率）
+          <select style={selStyle} value={roiF} onChange={e => setRoiF(e.target.value)}>
+            <option value="all">全部</option>
+            <option value="lt10">&gt;130% 不中</option>
+            <option value="10-20">115-130%</option>
+            <option value="20-30">100-115%</option>
+            <option value="gt30">≤100% 不中</option>
+          </select>
+        </label>
+          {(
             <>
               <label style={{ fontSize: '0.72rem', color: '#556' }}>賠率
                 <select style={selStyle} value={oddsF} onChange={e => setOddsF(e.target.value)}>
