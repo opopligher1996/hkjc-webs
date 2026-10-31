@@ -16,6 +16,9 @@ import GoalAnalysisPage from './pages/GoalAnalysisPage';
 import HDAAnalysisPage from './pages/HDAAnalysisPage';
 import EntriesPage from './pages/EntriesPage';
 import LoginPage from './pages/LoginPage';
+import UserAdminPage from './pages/UserAdminPage';
+import MessageBell from './pages/MessageBell';
+import HDAUserPage from './pages/HDAUserPage';
 import { getMe } from './api';
 
 const RACING_LINKS = [
@@ -37,6 +40,10 @@ const FOOTBALL_LINKS = [
   { to: '/corner', label: '分析角球' },
   { to: '/goals', label: '入球分析' },
   { to: '/hda', label: '主客和分析' },
+  { to: '/hda-user', label: '主客和分析（用戶版）' },
+];
+const ADMIN_LINKS = [
+  { to: '/users', label: '後台・用戶管理' },
 ];
 
 export default function App() {
@@ -116,6 +123,7 @@ export default function App() {
             </div>
 
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <MessageBell />
               <span style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.75rem' }}>
                 👤 {user.username}{user.role === 'admin' ? '（admin）' : ''}
               </span>
@@ -140,6 +148,9 @@ export default function App() {
             minWidth: 'fit-content',
             overflowX: 'auto',
           }}>
+            {user.role === 'admin' && section === 'football' && ADMIN_LINKS.map(l => (
+              <NavLink key={l.to} to={l.to} style={({ isActive }) => ({ padding: '0 12px', fontSize: '0.78rem', fontWeight: 700, color: isActive ? '#ffd700' : 'rgba(255,255,255,0.6)', textDecoration: 'none', whiteSpace: 'nowrap' })}>{l.label}</NavLink>
+            ))}
             {links.map(l => (
               <NavLink
                 key={l.to}
@@ -183,6 +194,8 @@ export default function App() {
             <Route path="/corner" element={<CornerAnalysisPage />} />
             <Route path="/goals" element={<GoalAnalysisPage />} />
             <Route path="/hda" element={<HDAAnalysisPage />} />
+            <Route path="/hda-user" element={<HDAUserPage />} />
+            {user.role === "admin" && <Route path="/users" element={<UserAdminPage user={user} />} />}
           </Routes>
         </main>
 

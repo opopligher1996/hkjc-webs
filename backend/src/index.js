@@ -31,6 +31,79 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.get('/api/auth/me', auth.authRequired, (req, res) => res.json({ user: req.user }));
+
+// ── 用戶管理（admin 限定）──
+// GET /api/users — 列出全部用戶
+app.get('/api/users', auth.authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: '只有 admin' });
+    const { rows } = await require('./db/pool').query(
+      'SELECT id, username, role, created_at FROM users ORDER BY id');
+    res.json({ users: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/users — 新增用戶
+app.post('/api/users', auth.authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: '只有 admin' });
+    const { username, password, role } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: '用戶名同密碼必需' });
+    if (String(password).length < 6) return res.status(400).json({ error: '密碼至少 6 位' });
+    const { rows } = await require('./db/pool').query(
+      'SELECT id FROM users WHERE username = $1', [username]);
+    if (rows.length) return res.status(409).json({ error: '用戶名已存在' });
+    const hash = auth.hashPassword(password);
+    const ins = await require('./db/pool').query(
+      'INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id, username, role',
+      [username, hash, role === 'admin' ? 'admin' : 'user']);
+    res.json({ user: ins.rows[0] });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/users/:id — 刪除用戶（唔可以刪自己/admin第一個）
+app.delete('/api/users/:id', auth.authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: '只有 admin' });
+    const id = +req.params.id;
+    if (id === req.user.uid) return res.status(400).json({ error: '唔可以刪除自己' });
+    const d = await require('./db/pool').query('DELETE FROM users WHERE id = $1 RETURNING username', [id]);
+    if (!d.rows.length) return res.status(404).json({ error: '用戶不存在' });
+    res.json({ ok: true, deleted: d.rows[0].username });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/users/:id/message — admin 訊息用戶
+app.post('/api/users/:id/message', auth.authRequired, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: '只有 admin' });
+    const { message } = req.body || {};
+    if (!message) return res.status(400).json({ error: '訊息必需' });
+    await require('./db/pool').query(
+      `CREATE TABLE IF NOT EXISTS user_messages (
+         id SERIAL PRIMARY KEY,
+         user_id INT,
+         from_admin TEXT,
+         message TEXT NOT NULL,
+         created_at TIMESTAMPTZ DEFAULT now(),
+         read_at TIMESTAMPTZ)`);
+    // user_id NULL = 廣播全部用戶
+    await require('./db/pool').query(
+      'INSERT INTO user_messages (user_id, from_admin, message) VALUES ($1, $2, $3)',
+      [req.params.id === 'all' ? null : +req.params.id, req.user.username, message]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/messages — 用戶攞自己嘅訊息（含廣播）
+app.get('/api/messages', auth.authRequired, async (req, res) => {
+  try {
+    const { rows } = await require('./db/pool').query(
+      'SELECT id, from_admin, message, created_at, read_at FROM user_messages WHERE user_id IS NULL OR user_id = $1 ORDER BY created_at DESC LIMIT 50',
+      [req.user.uid]);
+    res.json({ messages: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.use('/api', auth.authRequired);
 
 // Routes
