@@ -776,7 +776,7 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
         </span>
       </summary>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
-        <label style={{ fontSize: '0.72rem', color: '#556' }}>勝出率
+        <label style={{ fontSize: '0.72rem', color: '#556', display: 'none' }}>勝出率
           <select style={selStyle} value={rateF} onChange={e => setRateF(e.target.value)}>
             <option value="all">全部</option>
             <option value="20-30">20-30%</option>
@@ -831,16 +831,13 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
           <thead>
             <tr style={{ textAlign: 'left', color: '#667' }}>
               <th style={td}>日期</th><th style={td}>賽事類別</th><th style={td}>賽事</th>
-              <th style={td}>邊</th><th style={td}>賠率</th>
-              <th style={td} style={{display:'none'}}>場數</th><th style={td}>勝出率</th>
-              <th style={td}>不中機率</th>
-              {gapFilter && <th style={td}>gap</th>}
-              {gapFilter && <th style={td}>對手比</th>}
-              {gapFilter && <th style={td} title="中段最大收短%（走勢快照）">中段收短</th>}
+              <th style={td}>投注</th><th style={td}>賠率</th>
+              <th style={td}>回報率</th>
               <th style={td}>結果</th>
               <th style={td}>中</th>
               <th style={td}>馬會亞洲盤</th>
               <th style={td}>讓球勝負</th>
+              <th style={td}>中</th>
             </tr>
           </thead>
           <tbody>
@@ -868,11 +865,8 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                     }
                     return (
                       <span style={{ marginLeft: 4 }}>
-                        {hasN && (
-                          <span title="相似樣本 ≥100" style={{ fontSize: '0.65rem', background: '#d4edda', color: '#155724', borderRadius: 3, padding: '0 4px', fontWeight: 700, marginRight: 2 }}>n≥100 ✓</span>
-                        )}
-                        {hasGap && (
-                          <span title="分歧度 ≥16pp" style={{ fontSize: '0.65rem', background: '#c8e6c9', color: '#1b5e20', borderRadius: 3, padding: '0 4px', fontWeight: 700 }}>gap≥16 ✓</span>
+                        {false && (
+                          <span>hidden</span>
                         )}
                       </span>
                     );
@@ -881,71 +875,15 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                 <td style={{ ...td, fontWeight: 700 }}>
                   {{ H: '主', D: '和', A: '客' }[y.side]}
                   {y.color === 'F' && y.odds != null && (+y.odds >= 1.45 && +y.odds < 1.65
-                    ? <span title="◎ 甜蜜zone內（1.45-1.65）— 錯價核心" style={{ color: '#c2185b', fontSize: '0.65rem', fontWeight: 900 }}> ◎</span>
+                    ? <span title="精選客隊投注" style={{ color: '#c2185b', fontSize: '0.65rem', fontWeight: 900 }}> ◎</span>
                     : +y.odds < 1.45
-                    ? <span title="○ 低zone（<1.45）— 超短賠本來就該贏" style={{ color: '#99a', fontSize: '0.65rem' }}> ○</span>
-                    : <span title="△ 高zone（≥1.65）— 均勢場客熱・回測冇錯價（長期~46%）" style={{ color: '#b8860b', fontSize: '0.65rem', fontWeight: 700 }}> △</span>)}
+                    ? <span title="穩陣客隊投注" style={{ color: '#99a', fontSize: '0.65rem' }}> ○</span>
+                    : <span title="客隊投注" style={{ color: '#b8860b', fontSize: '0.65rem', fontWeight: 700 }}> △</span>)}
                 </td>
                 <td style={{ ...td, fontFamily: 'monospace' }}>{y.odds}</td>
-                <td style={{ ...td, fontFamily: 'monospace' }}>
-                  {hideNums ? <span style={{ color: '#b9c2d0', letterSpacing: 1 }}>★★★</span>
-                    : <span style={y.n >= 30 ? GREEN : undefined}>{y.n ?? '—'}</span>}
-                </td>
-                <td style={{ ...td, fontFamily: 'monospace', display: 'none' }}>
-                  {y.n ?? '—'}
-                </td>
-                <td style={{ ...td, fontFamily: 'monospace' }}>
-                  {y.rate != null ? `${(y.rate * 100).toFixed(0)}%` : '—'}
-                </td>
                 <td style={{ ...td, fontFamily: 'monospace', fontWeight: 700 }}>
-                  {y.roi != null ? <span style={y.roi > 0 ? { color: '#c0392b' } : { color: '#1e7e34' }}>
-                        {`${((1 - y.roi) * 100).toFixed(1)}%`}
-                      </span> : '—'}
+                  {y.roi != null ? `${((1 - y.roi) * 100).toFixed(1)}%` : '—'}
                 </td>
-                {gapFilter && (() => {
-                  if (hideNums) {
-                    return (
-                      <>
-                        <td style={td}><span style={{ color: '#b9c2d0', letterSpacing: 1 }}>★★★</span></td>
-                        <td style={td}><span style={{ color: '#b9c2d0', letterSpacing: 1 }}>★★★</span></td>
-                        <td style={td}><span style={{ color: '#b9c2d0', letterSpacing: 1 }}>★★★</span></td>
-                      </>
-                    );
-                  }
-                  let gap = null, oppRatio = null;
-                  if (y.odds_h && y.rate != null) {
-                    const inv = 1/+y.odds_h + 1/+y.odds_d + 1/+y.odds_a;
-                    const sideIdx = 'HDA'.indexOf(y.side);
-                    const betOdds = [+y.odds_h, +y.odds_d, +y.odds_a][sideIdx];
-                    gap = (1/betOdds) / inv - +y.rate;
-                    const oppOdds = Math.min(...[+y.odds_h, +y.odds_d, +y.odds_a].filter((_, j) => j !== sideIdx));
-                    oppRatio = oppOdds / betOdds;
-                  }
-                  return (
-                    <>
-                      <td style={{ ...td, fontFamily: 'monospace', fontWeight: 700,
-                        color: gap != null && gap >= 0.16 ? '#1b5e20' : gap != null && gap >= 0.13 ? '#155724' : '#889' }}>
-                        {gap != null ? (gap * 100).toFixed(1) + 'pp' : '—'}
-                      </td>
-                      <td style={{ ...td, fontFamily: 'monospace',
-                        color: oppRatio != null && oppRatio > 2.2 ? '#c0392b' : oppRatio != null && oppRatio <= 2.2 ? '#1e7e34' : '#889',
-                        fontWeight: oppRatio != null && oppRatio > 2.2 ? 800 : 400 }}>
-                        {oppRatio != null ? oppRatio.toFixed(2) : '—'}
-                      </td>
-                      {(() => {
-                        const d = y.maxDrop;
-                        if (d == null) return <td style={td}><span className="ai-muted">—</span></td>;
-                        const bucket = d >= 8 ? '≥8%' : d >= 5 ? '5-8%' : d >= 2 ? '2-5%' : '<2%';
-                        const color = d >= 8 ? '#c0392b' : d >= 5 ? '#b8860b' : d >= 2 ? '#1e7e34' : '#889';
-                        return (
-                          <td style={{ ...td, fontFamily: 'monospace', fontWeight: 700, color }} title={'中段最大收短 ' + d + '%（2-5%組回測100%・≥8%組73%）'}>
-                            {bucket}
-                          </td>
-                        );
-                      })()}
-                    </>
-                  );
-                })()}
                 <td style={td}>{y.result ? `${y.home_goals}-${y.away_goals}（${{ H: '主', D: '和', A: '客' }[y.result]}）` : '未完'}</td>
                 <td style={td}>{y.result ? (y.result === y.side ? '✅' : '❌') : ''}</td>
                 <td
