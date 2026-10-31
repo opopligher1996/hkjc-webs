@@ -775,66 +775,6 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
            >{hideNums ? '🔓 顯示' : '🔒 隱藏'}</button>
         </span>
       </summary>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
-        <label style={{ fontSize: '0.72rem', color: '#556' }}>勝出率
-          <select style={selStyle} value={rateF} onChange={e => setRateF(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="20-30">20-30%</option>
-            <option value="30-40">30-40%</option>
-            <option value="40+">40%以上</option>
-           </select>
-         </label>
-        <label style={{ fontSize: '0.72rem', color: '#556' }}>回報率（不中機率）
-          <select style={selStyle} value={roiF} onChange={e => setRoiF(e.target.value)}>
-            <option value="all">全部</option>
-            <option value="lt10">&gt;130% 不中</option>
-            <option value="10-20">115-130%</option>
-            <option value="20-30">100-115%</option>
-            <option value="gt30">≤100% 不中</option>
-          </select>
-        </label>
-          {(
-            <>
-              <label style={{ fontSize: '0.72rem', color: '#556' }}>賠率
-                <select style={selStyle} value={oddsF} onChange={e => setOddsF(e.target.value)}>
-                  <option value="all">全部</option>
-                  <option value="le150">≤1.50</option>
-                  <option value="150-165">1.50-1.65</option>
-                  <option value="165-180">1.65-1.80</option>
-                  <option value="180-200">1.80-2.00</option>
-                  <option value="gt200">&gt;2.00</option>
-                </select>
-              </label>
-              <label style={{ fontSize: '0.72rem', color: '#556' }}>分歧度
-                <select style={selStyle} value={gapF} onChange={e => setGapF(e.target.value)}>
-                  <option value="all">全部</option>
-                  <option value="10-13">10-13pp</option>
-                  <option value="13-16">13-16pp</option>
-                  <option value="16-20">16-20pp</option>
-                  <option value="20+">20pp以上</option>
-                </select>
-              </label>
-            </>
-          )}
-          <label style={{ fontSize: '0.72rem', color: '#556' }}>不中機率
-            <select style={selStyle} value={roiF} onChange={e => setRoiF(e.target.value)}>
-              <option value="all">全部</option>
-              {simpleRoiFilter ? (
-                <>
-                  <option value="lt10">&lt;-10%</option>
-                  <option value="gt10">&gt;-10%</option>
-                </>
-              ) : (
-                <>
-                  <option value="lt10">&lt;-10%</option>
-                  <option value="10-20">-10% 至 -20%</option>
-                  <option value="20-30">-20% 至 -30%</option>
-                  <option value="gt30">&gt;-30%</option>
-                </>
-              )}
-            </select>
-          </label>
-       </div>
       {filtered.length > 0 ? (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', marginTop: 6 }}>
           <thead>
