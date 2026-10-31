@@ -763,7 +763,7 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
       <summary style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, listStyle: 'none' }}>
         <b style={{ fontSize: '0.9rem' }}>{name}（{filtered.length} 場）</b>
           <span style={{ fontSize: '0.8rem', color: '#445' }}>
-          已完 <b>{s.settled}</b>・命中 <b>{s.hits}</b>
+          已完 <b>{s.settled}</b>・命中 <b>{s.hits}</b>｜命中率 <b style={{ color: s.hitRate >= 0.5 ? '#155724' : '#c0392b' }}>{s.hitRate != null ? `${(s.hitRate * 100).toFixed(1)}%` : '—'}</b>
            <span className="ai-muted" style={{ fontSize: '0.7rem', marginLeft: 6 }}>▸ 撳開睇逐場</span>
            <button
              onClick={e => { e.stopPropagation(); setHideNums(!hideNums); }}
