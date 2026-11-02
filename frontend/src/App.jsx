@@ -81,7 +81,7 @@ export default function App() {
             height: 44,
             minWidth: 'fit-content',
           }}>
-            <a className="nav-brand" href="/" style={{
+            <a className="nav-brand" href={user.role === 'admin' ? '/' : '/hda-user'} style={{
               color: '#fff',
               fontSize: '1.05rem',
               fontWeight: 800,
