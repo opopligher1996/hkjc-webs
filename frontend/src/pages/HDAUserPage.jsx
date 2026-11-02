@@ -160,7 +160,6 @@ export default function HDAAnalysisPage() {
       <div className="ai-tabs" style={{ marginBottom: 12 }}>
         {[
           { key: 'upcoming', label: '📅 未來賽事' },
-          { key: 'history', label: '📚 歷史回查' },
         ].map(t => (
           <button key={t.key} className={`ai-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
             {t.label}
@@ -168,7 +167,6 @@ export default function HDAAnalysisPage() {
         ))}
       </div>
 
-      {tab === 'history' && <HistoryTab />}
 
       {tab === 'upcoming' && (<>
 
