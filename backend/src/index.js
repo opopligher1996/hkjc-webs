@@ -3902,13 +3902,19 @@ app.get('/api/hda/patterns', async (req, res) => {
 const hk33Mod = require('./football/hk33');
 // GET /api/hda/upcoming — 馬會未來十日賽事（合併視圖）
 let _upcomingCache = { at: 0, data: null };
+let _upcomingRunning = false;
 app.get('/api/hda/upcoming', async (req, res) => {
   try {
     // 5分鐘快取（force=1 先重新爬）— 防 API 被重複重算塞死
     const force = req.query.refresh === '1';
-    if (!force && _upcomingCache.data && Date.now() - _upcomingCache.at < 5 * 60 * 1000) {
+    if (!force && _upcomingCache.data && Date.now() - _upcomingCache.at < 30 * 60 * 1000) {
       return res.json(_upcomingCache.data);
     }
+    if (_upcomingRunning && _upcomingCache.data) {
+      // 重算中 — 返回舊數據頂住
+      return res.json(_upcomingCache.data);
+    }
+    _upcomingRunning = true;
     // 撳刷新 → 即刻快照 pending 深綠格盤口軌跡（背景跑・唔阻響應）
     require('./jobs/oddsSnap').snapshotPending({}).catch(() => {});
     const up = await hdaService.buildUpcoming(req.query.refresh === '1');
@@ -3999,6 +4005,7 @@ app.get('/api/hda/upcoming', async (req, res) => {
     _upcomingCache = { at: Date.now(), data: payload };
     res.json(payload);
   } catch (e) { res.status(500).json({ error: e.message }); }
+  finally { _upcomingRunning = false; }
 });
 
 // POST /api/hda/scrape-all — 批量抓取全部百家初盤
