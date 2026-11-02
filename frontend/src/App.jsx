@@ -39,7 +39,7 @@ const RACING_LINKS = [
 const FOOTBALL_LINKS = [
   { to: '/corner', label: '分析角球' },
   { to: '/goals', label: '入球分析' },
-  ...(user.role === 'admin' ? [{ to: '/hda', label: '主客和分析' }] : []),
+  { to: '/hda', label: '主客和分析', admin: true },
   { to: '/hda-user', label: '主客和分析（用戶版）' },
 ];
 const ADMIN_LINKS = [
