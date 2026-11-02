@@ -4558,6 +4558,39 @@ app.post('/api/backfill/race-results', async (req, res) => {
 });
 
 // ── Entries (報名表) ───────────────────────────────────────────────────────
+// GET /api/entries/search?horse=馬名 — 該馬最近 3 次報名記錄
+app.get('/api/entries/search', async (req, res) => {
+  try {
+    const { horse } = req.query;
+    if (!horse || horse.trim().length < 2) return res.json({ horse: horse || '', records: [] });
+    const { rows } = await pool.query(
+      `SELECT meeting_date, racecourse, race_no, race_class, distance, track_type,
+              rating_range, trainer_name, horse_note,
+              TO_CHAR(scrape_date,'YYYY-MM-DD') AS scrape_date
+       FROM entries
+       WHERE horse_name ILIKE $1
+       ORDER BY meeting_date DESC
+       LIMIT 3`,
+      ['%' + horse.trim() + '%']);
+    res.json({
+      horse: horse.trim(),
+      matched_name: rows.length ? rows[0].horse_name : null,
+      records: rows.map(r => ({
+        meeting_date: r.meeting_date instanceof Date ? r.meeting_date.toISOString().slice(0,10) : String(r.meeting_date),
+        racecourse: r.racecourse || '',
+        race_no: r.race_no,
+        race_class: r.race_class || '',
+        distance: r.distance,
+        track_type: r.track_type || '',
+        rating_range: r.rating_range || '',
+        trainer_name: r.trainer_name || '',
+        horse_note: r.horse_note || '',
+        scrape_date: r.scrape_date,
+      })),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/entries', async (req, res) => {
   try {
     let date = req.query.date;

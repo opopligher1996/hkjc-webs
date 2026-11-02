@@ -8,6 +8,21 @@ export default function EntriesPage() {
   const [err, setErr] = useState(null);
   const [selectedDate, setSelectedDate] = useState('');
   const [scraping, setScraping] = useState(false);
+  const [searchHorse, setSearchHorse] = useState('');
+  const [searchResult, setSearchResult] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState(null);
+
+  async function searchHorseRecords() {
+    if (!searchHorse || searchHorse.trim().length < 2) return;
+    setSearching(true); setSearchError(null);
+    try {
+      const r = await api.get('/entries/search', { params: { horse: searchHorse.trim() } });
+      setSearchResult(r.data);
+    } catch (e) {
+      setSearchError(e.response?.data?.error || e.message);
+    } finally { setSearching(false); }
+  }
 
   useEffect(() => { loadEntries(); }, []);
 
@@ -144,6 +159,56 @@ export default function EntriesPage() {
           {log.map((l, i) => <div key={i}>{l}</div>)}
         </div>
       )}
+
+      {/* 馬匹報名記錄搜尋 */}
+      <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+        <h3 style={{ margin: '0 0 10px', color: '#032169' }}>🔍 馬匹報名記錄搜尋</h3>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            placeholder="輸入馬名（例如：勝利之光）"
+            value={searchHorse}
+            onChange={e => setSearchHorse(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') searchHorseRecords(); }}
+            style={{ padding: '8px 12px', border: '1px solid #ccd5e0', borderRadius: 6, minWidth: 220 }}
+          />
+          <button className="btn btn-primary" onClick={searchHorseRecords} disabled={searching}>
+            {searching ? '搜尋中…' : '搜尋'}
+          </button>
+          {searchResult && searchResult.matched_name && (
+            <span style={{ color: '#032169', fontWeight: 700 }}>{searchResult.matched_name}</span>
+          )}
+        </div>
+        {searchError && <div style={{ color: '#dc3545', marginTop: 8 }}>{searchError}</div>}
+        {searchResult && searchResult.records && searchResult.records.length > 0 && (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginTop: 12 }}>
+            <thead>
+              <tr style={{ background: '#f0f4ff', textAlign: 'left' }}>
+                {['報名日期', '馬場', '場次', '班次', '途程', '跑道', '評分範圍', '練馬師', '報名備註'].map(h => (
+                  <th key={h} style={{ padding: '6px 10px', color: '#032169', borderBottom: '2px solid #c0cce8' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {searchResult.records.map((r, i) => (
+                <tr key={i} style={{ background: i % 2 ? '#f8fafd' : '#fff' }}>
+                  <td style={{ padding: '6px 10px', fontWeight: 600 }}>{r.meeting_date}</td>
+                  <td style={{ padding: '6px 10px' }}>{r.racecourse === 'ST' ? '沙田' : r.racecourse === 'HV' ? '跑馬地' : r.racecourse}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'center' }}>第{r.race_no}場</td>
+                  <td style={{ padding: '6px 10px' }}>{r.race_class || '—'}</td>
+                  <td style={{ padding: '6px 10px', textAlign: 'center' }}>{r.distance}米</td>
+                  <td style={{ padding: '6px 10px' }}>{r.track_type === 'TURF' ? '草地' : r.track_type === 'AWT' ? '全天候' : r.track_type || '—'}</td>
+                  <td style={{ padding: '6px 10px' }}>{r.rating_range || '—'}</td>
+                  <td style={{ padding: '6px 10px' }}>{r.trainer_name || '—'}</td>
+                  <td style={{ padding: '6px 10px', color: '#555' }}>{r.horse_note || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {searchResult && searchResult.records && searchResult.records.length === 0 && (
+          <div style={{ color: '#999', marginTop: 10 }}>搵唔到呢匹馬嘅報名記錄</div>
+        )}
+      </div>
 
       {loading && <div className="loading">載入中...</div>}
       {err && <div className="error">{err}</div>}
