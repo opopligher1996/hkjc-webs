@@ -14,6 +14,7 @@ export default function LoginPage({ onLogin }) {
     try {
       const r = await login(username.trim(), password);
       localStorage.setItem('auth_token', r.token);
+      localStorage.setItem('user_role', r.user.role || 'user');
       onLogin(r.user);
     } catch (err) {
       setError(err.response?.data?.error || '登入失敗，請再試');

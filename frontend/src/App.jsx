@@ -23,13 +23,13 @@ import { getMe } from './api';
 
 const RACING_LINKS = [
   { to: '/entries', label: '報名表' },
-  { to: '/racecard', label: '本地排位表' },
+  { to: '/racecard', label: '本地排位表', admin: true },
   { to: '/advanced-racecard', label: '高級排位表' },
   { to: '/ai-data', label: '數據庫' },
-  { to: '/jockeys', label: '騎師資料' },
-  { to: '/trainers', label: '練馬師資料' },
-  { to: '/draw', label: '檔位搜尋' },
-  { to: '/horses', label: '馬匹資料' },
+  { to: '/jockeys', label: '騎師資料', admin: true },
+  { to: '/trainers', label: '練馬師資料', admin: true },
+  { to: '/draw', label: '檔位搜尋', admin: true },
+  { to: '/horses', label: '馬匹資料', admin: true },
   { to: '/coursetime', label: '跑道標準時間' },
   { to: '/pace', label: '步速分析' },
   { to: '/ai-analysis', label: 'AI 分析' },
@@ -53,10 +53,11 @@ export default function App() {
   React.useEffect(() => {
     const t = localStorage.getItem('auth_token');
     if (!t) return setUser(null);
-    getMe().then(r => setUser(r.user)).catch(() => setUser(null));
+    getMe().then(r => { setUser(r.user); localStorage.setItem('user_role', r.user.role || 'user'); }).catch(() => setUser(null));
   }, []);
   const logout = () => {
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_role');
     setUser(null);
   };
   const barColor = section === 'racing' ? '#032169' : '#145a23';

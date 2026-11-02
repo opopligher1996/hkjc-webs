@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api';
 
 export default function EntriesPage() {
+  const isAdmin = (localStorage.getItem('user_role') || 'user') === 'admin';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(null);
@@ -103,10 +104,10 @@ export default function EntriesPage() {
       <h1 className="page-title">報名表</h1>
 
       <div className="scrape-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-        <button className="btn btn-success" onClick={handleScrape} disabled={scraping || oneKey}>
+        {isAdmin && <button className="btn btn-success" onClick={handleScrape} disabled={scraping || oneKey}>
           {scraping ? '抓取中...' : '更新報名表'}
-        </button>
-        <button
+        </button>}
+        {isAdmin && <button
           onClick={handleOneKey}
           disabled={oneKey || scraping}
           style={{
@@ -116,7 +117,7 @@ export default function EntriesPage() {
           }}
         >
           {oneKey ? '⏳ 執行中…' : '⚡ 一鍵更新'}
-        </button>
+        </button>}
         {dates.length > 0 && (
           <div className="filter-group" style={{ marginBottom: 0 }}>
             <select

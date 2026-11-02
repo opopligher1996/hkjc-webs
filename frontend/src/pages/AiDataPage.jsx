@@ -894,6 +894,7 @@ function StatsDetailPanel({ entity, filters = {}, filterDesc = '', onBack }) {
 
   return (
     <div>
+      {!isAdmin && <style>{`button{display:none !important}`}</style>}
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
         <button onClick={onBack} style={{ fontSize: '0.82rem', color: '#032169', background: '#f0f4ff', border: '1px solid #c0cce8', borderRadius: 4, padding: '3px 10px', cursor: 'pointer' }}>
@@ -2215,6 +2216,7 @@ function AiDataPanel() {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function AiDataPage() {
+  const isAdmin = (localStorage.getItem('user_role') || 'user') === 'admin';
   return (
     <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }}>
       <h2 style={{ color: '#032169', marginBottom: 24, borderBottom: '2px solid #032169', paddingBottom: 8 }}>

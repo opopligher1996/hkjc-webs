@@ -11,6 +11,7 @@ const rcLabel = rc => rc === 'ST' ? '沙田' : rc === 'HV' ? '跑馬地' : rc ==
 const ttLabel = tt => tt === 'TURF' ? '草地' : tt === 'AWT' ? '全天候' : tt;
 
 export default function CourseTimePage() {
+  const isAdmin = (localStorage.getItem('user_role') || 'user') === 'admin';
   const [courseTimes, setCourseTimes] = useState([]);
   const [courseRecords, setCourseRecords] = useState([]);
   const [racecourse, setRacecourse] = useState('ALL');
@@ -84,6 +85,7 @@ export default function CourseTimePage() {
 
   return (
     <div>
+      {!isAdmin && <style>{`button{display:none !important}`}</style>}
       <h1 className="page-title">跑道標準時間</h1>
 
       <div className="scrape-actions">

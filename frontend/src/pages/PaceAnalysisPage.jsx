@@ -16,6 +16,7 @@ const PACE_META = {
 };
 
 export default function PaceAnalysisPage() {
+  const isAdmin = (localStorage.getItem('user_role') || 'user') === 'admin';
   const [fixtures, setFixtures] = useState([]);
   const [selectedDate, setSelectedDate] = useState('');
   const [data, setData] = useState(null);

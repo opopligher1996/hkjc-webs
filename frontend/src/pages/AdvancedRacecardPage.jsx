@@ -833,6 +833,7 @@ function exportAdvancedExcel(raceData, scope, selectedRace) {
 }
 
 export default function AdvancedRacecardPage() {
+  const isAdmin = (localStorage.getItem('user_role') || 'user') === 'admin';
   const [fixtures, setFixtures] = useState([]);
   const [selectedDate, setSelectedDate] = useState('');
   const [raceData, setRaceData] = useState(null);
@@ -969,6 +970,7 @@ export default function AdvancedRacecardPage() {
 
   return (
     <div>
+      {!isAdmin && <style>{`button{display:none !important}`}</style>}
       <h1 className="page-title">高級排位表</h1>
 
       <div className="filters">
