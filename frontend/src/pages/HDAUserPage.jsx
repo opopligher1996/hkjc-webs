@@ -11,19 +11,10 @@ const roiPct = v => v == null ? '—' : `${v > 0 ? '+' : ''}${(v * 100).toFixed(
 const GREEN = { background: '#d4edda', color: '#155724', fontWeight: 800, borderRadius: 3, padding: '0 3px' };
 
 // 初盤格：賠率 + SD + CV 疊三行 + 綠格（同場最低）
-function OddsStack({ odds, sd, cv, label, hlOdds, hlSd, hlCv }) {
+function OddsStack({ odds, hlOdds }) {
   return (
-    <td style={{ padding: '5px 8px', borderRight: '1px solid #e3e9f2', background: '#fbfcfe' }}>
-      <div style={{ fontSize: '0.65rem', color: '#889', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: '0.95rem', color: '#032169' }}>
-        <span style={hlOdds ? GREEN : { fontWeight: 700 }}>{odds}</span>
-      </div>
-      <div style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: '#667' }}>
-        SD <span style={hlSd ? GREEN : undefined}>{sd}</span>
-      </div>
-      <div style={{ fontFamily: 'monospace', fontSize: '0.68rem', color: cvColor(cv) }}>
-        CV <span style={hlCv ? GREEN : undefined}>{cv}</span>
-      </div>
+    <td style={{ padding: '5px 8px', textAlign: 'center', fontFamily: 'monospace', fontWeight: hlOdds ? 800 : 400, background: hlOdds ? '#fff8e1' : undefined, borderRight: '1px solid #e3e9f2' }}>
+      {odds != null ? odds.toFixed(2) : '—'}
     </td>
   );
 }
@@ -224,14 +215,6 @@ export default function HDAAnalysisPage() {
               <th style={th} rowSpan={2}>賽事類別</th>
               <th style={th} rowSpan={2}>主隊</th>
               <th style={th} rowSpan={2}>客隊</th>
-              <th style={{ ...th }} colSpan={3}>百家平均初盤</th>
-              <th style={th} colSpan={3}>勝出機率</th>
-            </tr>
-            <tr>
-              <th style={th}>主</th><th style={th}>和</th><th style={th}>客</th>
-              <th style={th}>主</th><th style={th}>和</th><th style={th}>客</th>
-              <th style={th}>主</th><th style={th}>和</th><th style={th}>客</th>
-              <th style={th}>主</th><th style={th}>和</th><th style={th}>客</th>
             </tr>
           </thead>
           <tbody>
