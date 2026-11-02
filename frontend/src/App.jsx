@@ -59,13 +59,13 @@ export default function App() {
     localStorage.removeItem('auth_token');
     setUser(null);
   };
-  const links = (section === 'racing' ? RACING_LINKS : FOOTBALL_LINKS).filter(l => !l.admin || user.role === 'admin');
   const barColor = section === 'racing' ? '#032169' : '#145a23';
 
   if (user === undefined) {
     return <div style={{ minHeight: '100vh', background: '#032169', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem' }}>驗證中…</div>;
   }
   if (!user) return <LoginPage onLogin={setUser} />;
+  const links = (section === 'racing' ? RACING_LINKS : FOOTBALL_LINKS).filter(l => !l.admin || user.role === 'admin');
 
   return (
     <BrowserRouter>
