@@ -512,18 +512,11 @@ function HistoryTab() {
             <tr style={{ background: '#032169', color: '#fff', fontSize: '0.7rem' }}>
               <th style={th2}>日期</th><th style={th2}>賽事類別</th><th style={th2}>主隊</th><th style={th2}>客隊</th>
               <th style={{...th2}} colSpan={3}>百家初盤</th>
-              <th style={{...th2}} colSpan={3}>預計開出</th>
-              <th style={th2}>場數</th>
-              <th style={{...th2}} colSpan={3}>開出比率</th>
-              <th style={{...th2}} colSpan={3}>回報率</th>
+              <th style={{...th2}} colSpan={3}>即場賠率</th>
               <th style={th2}>賽果</th><th style={th2}>中</th>
             </tr>
             <tr style={{ background: '#032169', color: '#fff', fontSize: '0.7rem' }}>
               <th colSpan={4}></th>
-              <th style={th2}>主</th><th style={th2}>和</th><th style={th2}>客</th>
-              <th style={th2}>主</th><th style={th2}>和</th><th style={th2}>客</th>
-              <th></th>
-              <th style={th2}>主</th><th style={th2}>和</th><th style={th2}>客</th>
               <th style={th2}>主</th><th style={th2}>和</th><th style={th2}>客</th>
               <th colSpan={2}></th>
             </tr>
@@ -549,25 +542,9 @@ function HistoryTab() {
                   <td style={{ ...td2, color: '#556', fontSize: '0.72rem' }}>{r.league_cn || r.league || '—'}</td>
                   <td style={{ ...td2, fontWeight: 600 }}>{r.home_team}</td>
                   <td style={{ ...td2, fontWeight: 600 }}>{r.away_team}</td>
-                  <OddsStack label="主" odds={vh} sd={sdAry[0]} cv={cvAry[0]} hlOdds={eq(vh, minO)} hlSd={eq(sdAry[0], minS)} hlCv={eq(cvAry[0], minC)} />
-                  <OddsStack label="和" odds={vd} sd={sdAry[1]} cv={cvAry[1]} hlOdds={eq(vd, minO)} hlSd={eq(sdAry[1], minS)} hlCv={eq(cvAry[1], minC)} />
-                  <OddsStack label="客" odds={va} sd={sdAry[2]} cv={cvAry[2]} hlOdds={eq(va, minO)} hlSd={eq(sdAry[2], minS)} hlCv={eq(cvAry[2], minC)} />
-                  {expR.map((e, j) => (
-                    <td key={j} style={{ ...td2, textAlign: 'center', fontFamily: 'monospace', background: '#fbfcfe' }}>{(e * 100).toFixed(1)}%</td>
-                  ))}
-                  <td style={{ ...td2, textAlign: 'center', fontWeight: 700 }}>
-                    <span style={s && s.n >= 30 ? GREEN : undefined}>{s ? s.n : '—'}</span>
-                  </td>
-                  {s ? (
-                    <>
-                      <PctCell v={rates[0]} hl={eq(rates[0], maxRate)} />
-                      <PctCell v={rates[1]} hl={eq(rates[1], maxRate)} />
-                      <PctCell v={rates[2]} hl={eq(rates[2], maxRate)} />
-                      <RoiCell v={rois[0]} hl={eq(rois[0], maxRoi)} />
-                      <RoiCell v={rois[1]} hl={eq(rois[1], maxRoi)} />
-                      <RoiCell v={rois[2]} hl={eq(rois[2], maxRoi)} />
-                    </>
-                  ) : <td colSpan={6} style={{ ...td2, textAlign: 'center', color: '#99a' }}>—</td>}
+                  <td style={{ ...td2, textAlign: 'center', fontFamily: 'monospace' }}>{vh.toFixed(2)}</td>
+                  <td style={{ ...td2, textAlign: 'center', fontFamily: 'monospace' }}>{vd.toFixed(2)}</td>
+                  <td style={{ ...td2, textAlign: 'center', fontFamily: 'monospace' }}>{va.toFixed(2)}</td>
                   <td style={{ ...td2, fontWeight: 700 }}>{r.home_goals}-{r.away_goals}（{{ H: '主', D: '和', A: '客' }[r.result]}）</td>
                   <td style={td2}>{[0, 1, 2].map(j => resIdx === j ? '✅' : '').join('')}</td>
                 </tr>
