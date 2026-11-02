@@ -179,12 +179,7 @@ export default function HDAAnalysisPage() {
             <span style={{ fontSize: '0.8rem', color: '#032169', fontWeight: 700 }}>⏳ 批量抓取 {b.done}/{b.total}</span>
           ) : null}
           <button className="ai-btn ai-btn-ghost" onClick={exportExcel} disabled={!data || !data.matches?.length}>📥 Excel</button>
-          <button className="ai-btn ai-btn-ghost" onClick={startBatch} disabled={starting || b?.running}>
-            {b?.running ? '抓取中…' : '💰 批量抓取初盤'}
-          </button>
-          <button className="ai-btn ai-btn-ghost" onClick={runDaily} disabled={starting || b?.running}>
-            {starting ? '更新中…' : '🔄 每日更新'}
-          </button>
+
           <button className="ai-btn ai-btn-ghost" onClick={load} disabled={loading}>
             {loading ? '刷新中…' : '↻ 刷新'}
           </button>
@@ -218,7 +213,7 @@ export default function HDAAnalysisPage() {
       </div>
 
       {error && <div className="ai-error">{error}</div>}
-      {loading && !data && <div className="ai-empty" style={{ padding: 20 }}>爬取馬會賽事 + titan007 賽程中（約 1 分鐘）…</div>}
+      {loading && !data && <div className="ai-empty" style={{ padding: 20 }}>爬取賽事中…</div>}
 
       <div className="ai-card" style={{ marginTop: 10, overflowX: 'auto', padding: 0 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', minWidth: 1180 }}>

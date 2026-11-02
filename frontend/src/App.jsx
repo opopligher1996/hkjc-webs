@@ -39,7 +39,7 @@ const RACING_LINKS = [
 const FOOTBALL_LINKS = [
   { to: '/corner', label: '分析角球' },
   { to: '/goals', label: '入球分析' },
-  { to: '/hda', label: '主客和分析' },
+  ...(user.role === 'admin' ? [{ to: '/hda', label: '主客和分析' }] : []),
   { to: '/hda-user', label: '主客和分析（用戶版）' },
 ];
 const ADMIN_LINKS = [
@@ -193,7 +193,7 @@ export default function App() {
             <Route path="/analysis" element={<AnalysisPage />} />
             <Route path="/corner" element={<CornerAnalysisPage />} />
             <Route path="/goals" element={<GoalAnalysisPage />} />
-            <Route path="/hda" element={<HDAAnalysisPage />} />
+            {user.role === "admin" && <Route path="/hda" element={<HDAAnalysisPage />} />}
             <Route path="/hda-user" element={<HDAUserPage />} />
             {user.role === "admin" && <Route path="/users" element={<UserAdminPage user={user} />} />}
           </Routes>

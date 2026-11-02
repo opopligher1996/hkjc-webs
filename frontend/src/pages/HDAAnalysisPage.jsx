@@ -224,7 +224,7 @@ export default function HDAAnalysisPage() {
       </div>
 
       {error && <div className="ai-error">{error}</div>}
-      {loading && !data && <div className="ai-empty" style={{ padding: 20 }}>爬取馬會賽事 + titan007 賽程中（約 1 分鐘）…</div>}
+      {loading && !data && <div className="ai-empty" style={{ padding: 20 }}>爬取賽事中…</div>}
 
       <div className="ai-card" style={{ marginTop: 10, overflowX: 'auto', padding: 0 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', minWidth: 1180 }}>
