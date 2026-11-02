@@ -59,7 +59,7 @@ export default function App() {
     localStorage.removeItem('auth_token');
     setUser(null);
   };
-  const links = section === 'racing' ? RACING_LINKS : FOOTBALL_LINKS;
+  const links = (section === 'racing' ? RACING_LINKS : FOOTBALL_LINKS).filter(l => !l.admin || user.role === 'admin');
   const barColor = section === 'racing' ? '#032169' : '#145a23';
 
   if (user === undefined) {
