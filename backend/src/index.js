@@ -3901,10 +3901,16 @@ app.get('/api/hda/patterns', async (req, res) => {
 // GET /api/hda/upcoming — 馬會全部賽事 + 百家初盤 + 相似賠率統計（HK33 優先）
 const hk33Mod = require('./football/hk33');
 // GET /api/hda/upcoming — 馬會未來十日賽事（合併視圖）
+let _upcomingCache = { at: 0, data: null };
 app.get('/api/hda/upcoming', async (req, res) => {
   try {
+    // 5分鐘快取（force=1 先重新爬）— 防 API 被重複重算塞死
+    const force = req.query.refresh === '1';
+    if (!force && _upcomingCache.data && Date.now() - _upcomingCache.at < 5 * 60 * 1000) {
+      return res.json(_upcomingCache.data);
+    }
     // 撳刷新 → 即刻快照 pending 深綠格盤口軌跡（背景跑・唔阻響應）
-    require('./jobs/oddsSnap').snapshotPending({ force: true }).catch(() => {});
+    require('./jobs/oddsSnap').snapshotPending({}).catch(() => {});
     const up = await hdaService.buildUpcoming(req.query.refresh === '1');
     const ids = up.rows.filter(r => r.titanId).map(r => r.titanId);
     let oddsMap = {};
@@ -3981,7 +3987,7 @@ app.get('/api/hda/upcoming', async (req, res) => {
     }
     // 自動捕捉新嘅黃/綠入庫（summary 即時更新；已存在唔會重寫）
     try { await hdaDaily.captureYellows({ rows: matches }); } catch (_) {}
-    res.json({
+    const payload = {
       count: matches.length,
       withOdds: matches.filter(m => m.odds).length,
       withHk33: matches.filter(m => m.hk33).length,
@@ -3989,7 +3995,9 @@ app.get('/api/hda/upcoming', async (req, res) => {
       batch: hdaService.batchState,
       cachedAt: up.at,
       matches,
-    });
+    };
+    _upcomingCache = { at: Date.now(), data: payload };
+    res.json(payload);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
