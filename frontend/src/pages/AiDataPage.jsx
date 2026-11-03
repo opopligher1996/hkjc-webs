@@ -894,7 +894,6 @@ function StatsDetailPanel({ entity, filters = {}, filterDesc = '', onBack }) {
 
   return (
     <div>
-      {!isAdmin && <style>{`button{display:none !important}`}</style>}
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
         <button onClick={onBack} style={{ fontSize: '0.82rem', color: '#032169', background: '#f0f4ff', border: '1px solid #c0cce8', borderRadius: 4, padding: '3px 10px', cursor: 'pointer' }}>

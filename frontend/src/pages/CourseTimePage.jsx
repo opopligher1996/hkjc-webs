@@ -85,13 +85,13 @@ export default function CourseTimePage() {
 
   return (
     <div>
-      {!isAdmin && <style>{`button{display:none !important}`}</style>}
       <h1 className="page-title">跑道標準時間</h1>
 
       <div className="scrape-actions">
-        <button className="btn btn-success" onClick={handleScrape} disabled={scraping}>
+        {isAdmin ? null : null}
+        {!isAdmin ? null : <button className="btn btn-success" onClick={handleScrape} disabled={scraping}>
           {scraping ? '更新中...' : '從 HKJC 更新'}
-        </button>
+        </button>}
       </div>
 
       <div className="filters" style={{ marginBottom: 16 }}>
