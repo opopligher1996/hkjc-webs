@@ -100,10 +100,11 @@ async function captureYellows(view) {
       // 深綠：乾淨 deep 或 舊法 deepOld（壞池優先）— m.deep 為 null 唔可以跳
       let hit = c.code === 'D' ? (m.deepOld || m.deep) : m[c.key];
       if (!hit) continue;
-      // ✈️ 客熱門：△高zone（客賠≥1.65）＋ 同場有深綠主隊訊號 → 兩訊號矛盾，唔入 F
+      // ✈️ 客熱門：△高zone（客賠≥1.65）＋ 同場有深綠「主隊」訊號 → 兩訊號矛盾，唔入 F
       if (c.code === 'F' && m.awayHot && (m.deepOld || m.deep)) {
+        const dv = (m.deepOld || m.deep).side;
         const va = m.odds ? +m.odds.open_a : null;
-        if (va != null && va >= 1.65) continue;
+        if (dv === 'H' && va != null && va >= 1.65) continue;
       }
       const i = hit.idx;
       // 舊計法深綠/客熱門用壞池 n/rate/roi・其他用 HK33/sim
