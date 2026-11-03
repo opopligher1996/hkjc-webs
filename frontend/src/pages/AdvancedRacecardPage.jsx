@@ -970,7 +970,6 @@ export default function AdvancedRacecardPage() {
 
   return (
     <div>
-      {!isAdmin && <style>{`button{display:none !important}`}</style>}
       <h1 className="page-title">高級排位表</h1>
 
       <div className="filters">
@@ -1020,22 +1019,22 @@ export default function AdvancedRacecardPage() {
           </button>
         </div>
         <div style={{ alignSelf: 'center', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button
+          {isAdmin && (<button
             className="btn"
             onClick={() => startTrackwork(false)}
             disabled={tw?.active || !selectedRace}
             title={`只抓取第 ${selectedRace ?? '-'} 場馬匹嘅晨操紀錄`}
           >
             {tw?.active ? '抓取中…' : '更新本場晨操'}
-          </button>
-          <button
+          </button>)}
+          {isAdmin && (<button
             className="btn"
             onClick={() => startTrackwork(true)}
             disabled={tw?.active}
             title="抓取全日排位表馬匹嘅晨操紀錄（約 3-5 分鐘）"
           >
             更新全日晨操
-          </button>
+          </button>)}
           <button
             className="btn"
             onClick={startSectional}
