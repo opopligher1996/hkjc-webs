@@ -645,7 +645,14 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                     ? <span title="穩陣客隊投注" style={{ color: '#99a', fontSize: '0.65rem' }}> ○</span>
                     : <span title="客隊投注" style={{ color: '#b8860b', fontSize: '0.65rem', fontWeight: 700 }}> △</span>)}
                 </td>
-                <td style={{ ...td, fontFamily: 'monospace' }}>{y.odds}</td>
+                <td style={{ ...td, fontFamily: 'monospace' }}>
+                  {y.odds}
+                  {(y.color === 'F' || y.color === 'T') && y.rate != null && (
+                    <span title="壞池歷史開出率" style={{ color: y.rate >= 0.3 ? '#1e7e34' : '#c0392b', fontSize: '0.6rem', display: 'block' }}>
+                      r{(y.rate * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </td>
                 <td style={{ ...td, fontFamily: 'monospace', fontWeight: 700 }}>
                   {y.roi != null ? `${((1 - y.roi) * 100).toFixed(1)}%` : '—'}
                 </td>
