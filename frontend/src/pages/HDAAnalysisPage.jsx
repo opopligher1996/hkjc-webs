@@ -1092,7 +1092,14 @@ function BacktestTable() {
                   <td style={{ ...td, color: '#556', fontSize: '0.68rem' }}>{y.league || '—'}</td>
                   <td style={td}>{y.home} vs {y.away}</td>
                   <td style={{ ...td, fontWeight: 700 }}>{{ H: '主', D: '和', A: '客' }[y.side]}</td>
-                  <td style={{ ...td, fontFamily: 'monospace' }}>{y.odds}{y.color === 'T' && y.rate != null && <span style={{ color: '#1e7e34', fontSize: '0.6rem' }}> r{(y.rate*100).toFixed(0)}</span>}</td>
+                  <td style={{ ...td, fontFamily: 'monospace' }}>
+                  {y.odds}
+                  {(y.color === 'T' || y.color === 'F') && y.rate != null && (
+                    <span title="壞池歷史開出率" style={{ color: y.rate >= 0.3 ? '#1e7e34' : '#c0392b', fontSize: '0.6rem', display: 'block' }}>
+                      r{(y.rate * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </td>
                   <td style={{ ...td, fontFamily: 'monospace' }}>{y.n}</td>
                   <td style={{ ...td, fontFamily: 'monospace' }}>{(y.rate * 100).toFixed(0)}%</td>
                   <td style={{ ...td, fontFamily: 'monospace', color: y.roi > 0 ? '#1e7e34' : '#c0392b' }}>{(y.roi * 100).toFixed(1)}%</td>
