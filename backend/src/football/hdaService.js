@@ -414,17 +414,18 @@ async function getMergedView(tol = 0.10) {
       white = detectWhite(vh, vd, va, sdAry, cvAry, rates, n);
     }
     // 舊法深綠：壞基準池 6 條件（只行 titan odds 場）— 每日 job 都要捕捉
-    let deepOld = null, bad = null, awayHot = null;
+    let deepOld = null, bad = null, awayHot = null, awayHotTrue = null;
     if (vh != null && sdAry && o?.open_h) {
       try {
         bad = await similarStatsBad(+o.open_h, +o.open_d, +o.open_a, 0.10);
         if (bad.n >= 30) {
           deepOld = detectDeepOld(vh, vd, va, sdAry, cvAry, [bad.rateH, bad.rateD, bad.rateA], [bad.roiH, bad.roiD, bad.roiA], bad.n);
           awayHot = detectAwayHot(vh, vd, va, sdAry, cvAry, [bad.rateH, bad.rateD, bad.rateA], [bad.roiH, bad.roiD, bad.roiA], bad.n);
+          if (awayHot && bad.rateA >= 0.30) awayHotTrue = { ...awayHot, true_hot: true };
         }
       } catch (_) {}
     }
-    out.push({ ...r, odds: o, hk33: k, yellow, green, deep, strong, white, deepOld, awayHot, bad: bad?.n ? { n: bad.n, rateH: bad.rateH, rateD: bad.rateD, rateA: bad.rateA, roiH: bad.roiH, roiD: bad.roiD, roiA: bad.roiA } : null, sim: (!k && n != null && rates) ? { n, rateH: rates[0], rateD: rates[1], rateA: rates[2], roiH: rois[0], roiD: rois[1], roiA: rois[2] } : null });
+    out.push({ ...r, odds: o, hk33: k, yellow, green, deep, strong, white, deepOld, awayHot, awayHotTrue, bad: bad?.n ? { n: bad.n, rateH: bad.rateH, rateD: bad.rateD, rateA: bad.rateA, roiH: bad.roiH, roiD: bad.roiD, roiA: bad.roiA } : null, sim: (!k && n != null && rates) ? { n, rateH: rates[0], rateD: rates[1], rateA: rates[2], roiH: rois[0], roiD: rois[1], roiA: rois[2] } : null });
   }
   return { rows: out, at: up.at };
 }

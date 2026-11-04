@@ -213,6 +213,7 @@ export default function HDAAnalysisPage() {
             <TrackTable color="S" name="💚 強綠格賽事" bg="#e0f2e9" border="#3fa376" stats={ystats.byColor?.S} matches={ystats.matches.filter(m => m.color === 'S')} fade onAhEdit={setAhEdit} />
             <TrackTable color="W" name="🔵 藍格賽事" bg="#e8f2fc" border="#5a9fd8" stats={ystats.byColor?.W} matches={ystats.matches.filter(m => m.color === 'W')} fade onAhEdit={setAhEdit} />
             <TrackTable color="F" name={<span>{CIRCLE_MARK} 客熱門賽事</span>} bg="#fff0f5" border="#c4799a" stats={ystats.byColor?.F} matches={ystats.matches.filter(m => m.color === 'F')} fade onAhEdit={setAhEdit} />
+            <TrackTable color="T" name="💎 真客熱門賽事（rate≥0.30）" bg="#e0f7e0" border="#2e9e6b" stats={ystats.byColor?.T} matches={ystats.matches.filter(m => m.color === 'T')} fade onAhEdit={setAhEdit} />
             <TrackTable color="P" name="🟪 紫格賽事（主≤1.6+客收盤受捧3%+ → 買客）" bg="#f3eefa" border="#9b7fd4" stats={ystats.byColor?.P} matches={ystats.matches.filter(m => m.color === 'P')} onAhEdit={setAhEdit} />
             <BacktestTable />
             <GreenRegression />
@@ -887,6 +888,7 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                 </td>
                 <td style={{ ...td, fontWeight: 700 }}>
                   {{ H: '主', D: '和', A: '客' }[y.side]}
+                  {y.color === 'F' && y.rate != null && <span title="壞池歷史開出率" style={{ color: y.rate >= 0.3 ? '#1e7e34' : '#c0392b', fontSize: '0.6rem', marginLeft: 2 }}>r{(y.rate*100).toFixed(0)}</span>}
                   {y.color === 'F' && y.odds != null && (+y.odds >= 1.45 && +y.odds < 1.65
                     ? <span title="◎ 甜蜜zone內（1.45-1.65）— 錯價核心" style={{ color: '#c2185b', fontSize: '0.65rem', fontWeight: 900 }}> ◎</span>
                     : +y.odds < 1.45
@@ -1090,7 +1092,7 @@ function BacktestTable() {
                   <td style={{ ...td, color: '#556', fontSize: '0.68rem' }}>{y.league || '—'}</td>
                   <td style={td}>{y.home} vs {y.away}</td>
                   <td style={{ ...td, fontWeight: 700 }}>{{ H: '主', D: '和', A: '客' }[y.side]}</td>
-                  <td style={{ ...td, fontFamily: 'monospace' }}>{y.odds}</td>
+                  <td style={{ ...td, fontFamily: 'monospace' }}>{y.odds}{y.color === 'T' && y.rate != null && <span style={{ color: '#1e7e34', fontSize: '0.6rem' }}> r{(y.rate*100).toFixed(0)}</span>}</td>
                   <td style={{ ...td, fontFamily: 'monospace' }}>{y.n}</td>
                   <td style={{ ...td, fontFamily: 'monospace' }}>{(y.rate * 100).toFixed(0)}%</td>
                   <td style={{ ...td, fontFamily: 'monospace', color: y.roi > 0 ? '#1e7e34' : '#c0392b' }}>{(y.roi * 100).toFixed(1)}%</td>

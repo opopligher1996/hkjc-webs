@@ -82,6 +82,7 @@ async function captureYellows(view) {
     { key: 'strong', code: 'S' },
     { key: 'white', code: 'W' },
     { key: 'awayHot', code: 'F' },
+    { key: 'awayHotTrue', code: 'T' },
   ];
   for (const m of view.rows) {
     const o = m.odds, k0 = m.hk33, sim = m.sim;
@@ -98,7 +99,7 @@ async function captureYellows(view) {
     const roiArr = k ? [k.roiH, k.roiD, k.roiA] : (sim && sim.n >= 30 ? [sim.roiH, sim.roiD, sim.roiA] : null);
     for (const c of COLORS) {
       // 深綠：乾淨 deep 或 舊法 deepOld（壞池優先）— m.deep 為 null 唔可以跳
-      let hit = c.code === 'D' ? (m.deepOld || m.deep) : m[c.key];
+      let hit = c.code === 'D' ? (m.deepOld || m.deep) : (c.code === 'T' ? m.awayHotTrue : m[c.key]);
       if (!hit) continue;
       // ✈️ 客熱門：△高zone（客賠≥1.65）＋ 同場有深綠「主隊」訊號 → 兩訊號矛盾，唔入 F
       if (c.code === 'F' && m.awayHot && (m.deepOld || m.deep)) {
@@ -108,7 +109,7 @@ async function captureYellows(view) {
       }
       const i = hit.idx;
       // 舊計法深綠/客熱門用壞池 n/rate/roi・其他用 HK33/sim
-      const isBad = (c.code === 'D' && m.deepOld && hit === m.deepOld) || (c.code === 'F' && m.awayHot);
+      const isBad = (c.code === 'D' && m.deepOld && hit === m.deepOld) || (c.code === 'F' && m.awayHot) || (c.code === 'T' && m.awayHotTrue);
       const useN = isBad ? (m.bad?.n ?? null) : n;
       const useRateArr = isBad
         ? (m.bad && m.bad.n >= 30 ? [m.bad.rateH, m.bad.rateD, m.bad.rateA] : null)
