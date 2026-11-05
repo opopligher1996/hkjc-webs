@@ -353,6 +353,12 @@ async function runDaily() {
       const gaps = await checkGaps(3);
       log.push(`補漏 ${gaps}`);
     } catch (e) { log.push(`補漏 FAIL: ${e.message.slice(0, 30)}`); }
+    // 8. HKJC 初盤（新賽事）
+    try {
+      const scraper = require('../scrapers/hkjc');
+      const hkjcInit = await scraper.fetchHkjcOddsInit(7);
+      log.push(`HKJC初盤 ${hkjcInit.got}/${hkjcInit.done}`);
+    } catch (e) { log.push(`HKJC初盤 FAIL: ${e.message.slice(0, 30)}`); }
     jobState.lastRun = Date.now();
     jobState.lastResult = log.join('・');
     return { ok: true, log };

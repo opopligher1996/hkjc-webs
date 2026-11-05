@@ -2775,6 +2775,49 @@ async function fetchMeetingRail(raceDate, racecourse) {
   return updated;
 }
 
+// ── HKJC 初盤：titan oddslist 香港马*(中国香港) 行（選「初」）──
+async function fetchHkjcOddsInit(daysBack = 7) {
+  const pool = require('../db/pool');
+  const { rows: targets } = await pool.query(
+    `SELECT titan_id, home_team FROM had_odds
+     WHERE titan_id IS NOT NULL AND (hkjc_h IS NULL OR hkjc_h = 0)
+       AND match_date >= CURRENT_DATE - $1
+     ORDER BY match_date LIMIT 60`, [daysBack]);
+  if (!targets.length) return { done: 0, got: 0 };
+  const puppeteer = require('puppeteer');
+  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  const page = await browser.newPage();
+  let got = 0;
+  for (const m of targets) {
+    try {
+      await page.goto(`https://op1.titan007.com/oddslist/${m.titan_id}.htm`, { waitUntil: 'domcontentloaded', timeout: 25000 });
+      await new Promise(r => setTimeout(r, 1800));
+      await page.evaluate(() => {
+        const s = document.getElementById('sel_showType');
+        if (s) { for (const o of s.options) if (o.text === '初') { s.value = o.value; s.dispatchEvent(new Event('change', { bubbles: true })); } }
+      });
+      await new Promise(r => setTimeout(r, 1500));
+      const odds = await page.evaluate(() => {
+        for (const tr of document.querySelectorAll('tr[id^=oddstr_]')) {
+          const t = (tr.innerText || '');
+          if (t.includes('香港马')) {
+            const nums = t.replace(/\s+/g, ' ').match(/([\d.]+)\s+([\d.]+)\s+([\d.]+)/);
+            return nums ? { h: +nums[1], d: +nums[2], a: +nums[3] } : null;
+          }
+        }
+        return null;
+      });
+      if (odds && odds.h > 1) {
+        await pool.query('UPDATE had_odds SET hkjc_h=$1, hkjc_d=$2, hkjc_a=$3 WHERE titan_id=$4',
+          [odds.h, odds.d, odds.a, String(m.titan_id)]);
+        got++;
+      }
+    } catch (_) {}
+  }
+  await browser.close();
+  return { done: targets.length, got };
+}
+
 module.exports = {
   scrapeJockeyList,
   scrapeJockeyPastRec,
@@ -2807,6 +2850,7 @@ module.exports = {
   scrapeVetRecord,
   scrapeTrackwork,
   fetchMeetingRail,
+  fetchHkjcOddsInit,
   fetchUpcomingRail,
   scrapeLocalResults,
   saveLocalResults,

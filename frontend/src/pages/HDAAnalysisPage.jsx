@@ -237,12 +237,15 @@ export default function HDAAnalysisPage() {
               <th style={th} rowSpan={2}>主隊</th>
               <th style={th} rowSpan={2}>客隊</th>
               <th style={{ ...th }} colSpan={3}>百家平均初盤</th>
+              <th style={{ ...th }} colSpan={3}>香港馬會初盤</th>
               <th style={th} colSpan={3}>預計開出比率</th>
               <th style={th} rowSpan={2}>場數</th>
               <th style={th} colSpan={3}>開出比率</th>
               <th style={th} colSpan={3}>回報率</th>
             </tr>
             <tr>
+              <th style={th}>主</th><th style={th}>和</th><th style={th}>客</th>
+              <th style={th}>主</th><th style={th}>和</th><th style={th}>客</th>
               <th style={th}>主</th><th style={th}>和</th><th style={th}>客</th>
               <th style={th}>主</th><th style={th}>和</th><th style={th}>客</th>
               <th style={th}>主</th><th style={th}>和</th><th style={th}>客</th>
@@ -336,6 +339,12 @@ export default function HDAAnalysisPage() {
                         hlOdds={eq(vd, minOddsV)} hlSd={eq(sdAry?.[1], minSdV)} hlCv={eq(cvAry?.[1], minCvV)} />
                       <OddsStack label="客" odds={va} sd={sdAry?.[2]} cv={cvAry?.[2]}
                         hlOdds={eq(va, minOddsV)} hlSd={eq(sdAry?.[2], minSdV)} hlCv={eq(cvAry?.[2], minCvV)} />
+                      {/* 香港馬會初盤 */}
+                      {[o.hkjc_h, o.hkjc_d, o.hkjc_a].map((v, j) => (
+                        <td key={'hk' + j} style={{ padding: '5px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: '0.8rem', background: '#fff8f0', borderRight: '1px solid #e3e9f2', color: v ? '#8a5a2a' : '#bbb' }}>
+                          {v ? (+v).toFixed(2) : '—'}
+                        </td>
+                      ))}
                       {/* 預計開出比率 = (1/賠率) / Σ(1/三項賠率) */}
                       {[vh, vd, va].map((x, idx) => {
                         const invSum = 1 / vh + 1 / vd + 1 / va;
