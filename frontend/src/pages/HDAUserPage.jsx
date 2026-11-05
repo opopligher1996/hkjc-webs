@@ -517,6 +517,16 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
   const [openFb, setOpenFb] = useState(null);
   const [hideNums, setHideNums] = useState(false);
   const td = { padding: '3px 6px', borderBottom: '1px solid #eee' };
+  const hkjcDev = y => {
+    if (!y.open_h || !y.open_d || !y.open_a || !y.hkjc_h || !y.hkjc_d || !y.hkjc_a) return null;
+    const si = 'HDA'.indexOf(y.side);
+    if (si < 0) return null;
+    const invO = 1/+y.open_h + 1/+y.open_d + 1/+y.open_a;
+    const invK = 1/+y.hkjc_h + 1/+y.hkjc_d + 1/+y.hkjc_a;
+    const po = (1/[+y.open_h, +y.open_d, +y.open_a][si]) / invO;
+    const pk = (1/[+y.hkjc_h, +y.hkjc_d, +y.hkjc_a][si]) / invK;
+    return (pk - po) * 100;
+  };
   // 過濾：開出比率 / 回報率 / gap / 賠率（深綠格專用）
   const calcGap = y => {
     if (y.odds_h && y.odds_d && y.odds_a && y.rate != null) {
@@ -645,6 +655,13 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                     : +y.odds < 1.45
                     ? <span title="穩陣客隊投注" style={{ color: '#99a', fontSize: '0.65rem' }}> ○</span>
                     : <span title="客隊投注" style={{ color: '#b8860b', fontSize: '0.65rem', fontWeight: 700 }}> △</span>)}
+                  {(() => {
+                    const dev = hkjcDev(y);
+                    if (dev == null) return null;
+                    const th = y.color === 'S' ? 2 : 1;
+                    if (dev < th) return null;
+                    return <span title="香港馬會初盤都更捧呢一邊 — 歷史勝出率更高" style={{ marginLeft: 3, fontSize: '0.6rem', fontWeight: 900, background: '#032169', color: '#ffd700', borderRadius: 3, padding: '0 4px' }}>馬會✓</span>;
+                  })()}
                 </td>
                 <td style={{ ...td, fontFamily: 'monospace' }}>{y.odds}</td>
                 <td style={{ ...td, fontFamily: 'monospace', fontWeight: 700,

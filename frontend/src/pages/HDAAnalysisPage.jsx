@@ -717,6 +717,17 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
   const [openFb, setOpenFb] = useState(null);
   const [hideNums, setHideNums] = useState(false);
   const td = { padding: '3px 6px', borderBottom: '1px solid #eee' };
+  // 馬會確認度：馬會初盤隱含概率 − 百家初盤隱含概率（投注方向，pp）
+  const hkjcDev = y => {
+    if (!y.open_h || !y.open_d || !y.open_a || !y.hkjc_h || !y.hkjc_d || !y.hkjc_a) return null;
+    const si = 'HDA'.indexOf(y.side);
+    if (si < 0) return null;
+    const invO = 1/+y.open_h + 1/+y.open_d + 1/+y.open_a;
+    const invK = 1/+y.hkjc_h + 1/+y.hkjc_d + 1/+y.hkjc_a;
+    const po = (1/[+y.open_h, +y.open_d, +y.open_a][si]) / invO;
+    const pk = (1/[+y.hkjc_h, +y.hkjc_d, +y.hkjc_a][si]) / invK;
+    return (pk - po) * 100;
+  };
   // 過濾：開出比率 / 回報率 / gap / 賠率（深綠格專用）
   const calcGap = y => {
     if (y.odds_h && y.odds_d && y.odds_a && y.rate != null) {
@@ -903,6 +914,14 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                     : +y.odds < 1.45
                     ? <span title="○ 低zone（<1.45）— 超短賠本來就該贏" style={{ color: '#99a', fontSize: '0.65rem' }}> ○</span>
                     : <span title="△ 高zone（≥1.65）— 均勢場客熱・回測冇錯價（長期~46%）" style={{ color: '#b8860b', fontSize: '0.65rem', fontWeight: 700 }}> △</span>)}
+                  {(() => {
+                    const dev = hkjcDev(y);
+                    if (dev == null) return null;
+                    const th = y.color === 'S' ? 2 : 1;
+                    if (dev < th) return null;
+                    const bt = y.color === 'S' ? '強綠回測：馬會確認 13/15=87%・唔確認 7/12=58%' : '客熱門回測：馬會確認 11/12=92%・唔確認 11/14=79%';
+                    return <span title={`馬會初盤比百家更捧 ${dev.toFixed(1)}pp（閾值+${th}pp）— ${bt}`} style={{ marginLeft: 3, fontSize: '0.6rem', fontWeight: 900, background: '#032169', color: '#ffd700', borderRadius: 3, padding: '0 4px' }}>馬會✓</span>;
+                  })()}
                 </td>
                 <td style={{ ...td, fontFamily: 'monospace' }}>{y.odds}</td>
                 <td style={{ ...td, fontFamily: 'monospace' }}>
