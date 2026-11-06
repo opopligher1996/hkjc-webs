@@ -42,7 +42,8 @@ async function scrape1x2(titanId) {
   const page = await browser.newPage();
   await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
   try {
-    await page.goto(`https://1x2.titan007.com/oddslist/${titanId}_2.htm`, { waitUntil: 'networkidle2', timeout: 30000 });
+    // domcontentloaded + 固定等待：networkidle2 喺常駐連線頁面永遠等唔到
+    await page.goto(`https://1x2.titan007.com/oddslist/${titanId}_2.htm`, { waitUntil: 'domcontentloaded', timeout: 25000 });
     await new Promise(r => setTimeout(r, 4000));
     const title = await page.title();
 

@@ -225,11 +225,16 @@ async function runBatch() {
 
   const CONC = 3;
   const queue = [...todo];
+  // 每場 90 秒硬上限：browser 被殺等情況下 goto 可能永遠掛住，防單場卡死成個 batch
+  const withTimeout = (p, ms) => Promise.race([
+    p,
+    new Promise((_, rej) => setTimeout(() => rej(new Error('scrapeOne timeout 90s')), ms)),
+  ]);
   const workers = Array.from({ length: CONC }, async () => {
     while (queue.length) {
       const m = queue.shift();
       if (!m) break;
-      try { await scrapeOne(m.titanId, m); }
+      try { await withTimeout(scrapeOne(m.titanId, m), 90000); }
       catch (_) { batchState.errors++; }
       batchState.done++;
     }
