@@ -658,7 +658,8 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                   {(() => {
                     const dev = hkjcDev(y);
                     if (dev == null) return null;
-                    const th = y.color === 'S' ? 2 : 1;
+                    if (y.color !== 'S') return null;
+                    const th = 2;
                     if (dev < th) return null;
                     return <span title="香港馬會初盤都更捧呢一邊 — 歷史勝出率更高" style={{ marginLeft: 3, fontSize: '0.6rem', fontWeight: 900, background: '#032169', color: '#ffd700', borderRadius: 3, padding: '0 4px' }}>馬會✓</span>;
                   })()}

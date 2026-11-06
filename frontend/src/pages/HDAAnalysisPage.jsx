@@ -917,9 +917,10 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                   {(() => {
                     const dev = hkjcDev(y);
                     if (dev == null) return null;
-                    const th = y.color === 'S' ? 2 : 1;
+                    if (y.color !== 'S') return null;
+                    const th = 2;
                     if (dev < th) return null;
-                    const bt = y.color === 'S' ? '強綠回測：馬會確認 13/15=87%・唔確認 7/12=58%' : '客熱門回測：馬會確認 11/12=92%・唔確認 11/14=79%';
+                    const bt = '強綠回測：馬會確認 13/15=87%・唔確認 7/12=58%';
                     return <span title={`馬會初盤比百家更捧 ${dev.toFixed(1)}pp（閾值+${th}pp）— ${bt}`} style={{ marginLeft: 3, fontSize: '0.6rem', fontWeight: 900, background: '#032169', color: '#ffd700', borderRadius: 3, padding: '0 4px' }}>馬會✓</span>;
                   })()}
                 </td>
