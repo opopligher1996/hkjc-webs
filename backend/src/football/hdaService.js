@@ -186,8 +186,16 @@ async function similarStats(h, d, a, tol = 0.10) {
   };
 }
 
+let batchStarting = false;
 async function runBatch() {
-  if (batchState.running) return;
+  // 同步鎖：防兩個 caller 同時通過 running 檢查（async buildUpcoming 前嘅空窗）
+  if (batchState.running || batchStarting) return;
+  batchStarting = true;
+  try {
+    await _runBatchInner();
+  } finally { batchStarting = false; }
+}
+async function _runBatchInner() {
   const { rows } = await buildUpcoming();
   const targets = rows.filter(r => r.titanId);
   const { rows: existing } = await pool.query('SELECT titan_id FROM had_odds');
