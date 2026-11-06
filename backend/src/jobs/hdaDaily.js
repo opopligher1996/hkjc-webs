@@ -405,6 +405,12 @@ function start() {
         console.log('[hdaDaily] 04:05 自動更新開始');
         runDaily();
       }
+      // 晚間 21:05 補捉：馬會通常晚上開新盤，避免等聽朝先捉到
+      if (hkHour === 21 && hkMin >= 5 && hkMin < 20 && lastRunDate !== today + '_eve') {
+        lastRunDate = today + '_eve';
+        console.log('[hdaDaily] 21:05 晚間補捉開始');
+        runDaily();
+      }
     } catch (_) {}
   };
   setInterval(tick, 60 * 1000);
