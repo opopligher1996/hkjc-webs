@@ -3657,9 +3657,9 @@ app.patch('/api/hda/ah', async (req, res) => {
       }
       await pool.query(
         `UPDATE hda_track SET ah_line=$1, ah_odds=$2, ah_away_line=$3, ah_away_odds=$4, ah_result=$5
-         WHERE fb=$6 AND color=$7`,
-        [ahLine, ahOdds ?? null, ahAwayLine ?? null, ahAwayOdds ?? null, ahResult, fb, r.color],
-      ).then(u => console.log('[hda/ah] UPDATE rowCount:', u.rowCount, 'color=', r.color));
+         WHERE fb=$6`,
+        [ahLine, ahOdds ?? null, ahAwayLine ?? null, ahAwayOdds ?? null, ahResult, fb],
+      ).then(u => console.log('[hda/ah] UPDATE rowCount:', u.rowCount, '(全部顏色同步)'));
     }
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
