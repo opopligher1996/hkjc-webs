@@ -2782,7 +2782,7 @@ async function fetchHkjcOddsInit(daysBack = 7) {
     `SELECT titan_id, home_team FROM had_odds
      WHERE titan_id IS NOT NULL AND (hkjc_h IS NULL OR hkjc_h = 0)
        AND match_date >= CURRENT_DATE - ${parseInt(daysBack) || 7}::int
-     ORDER BY match_date LIMIT 150`, []);
+     ORDER BY match_date DESC LIMIT 200`, []);
   if (!targets.length) return { done: 0, got: 0 };
   const puppeteer = require('puppeteer');
   const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-dev-shm-usage'] });
