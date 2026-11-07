@@ -657,7 +657,10 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                     : <span title="客隊投注" style={{ color: '#b8860b', fontSize: '0.65rem', fontWeight: 700 }}> △</span>)}
                   {(() => {
                     const dev = hkjcDev(y);
-                    if (dev == null) return null;
+                    if (dev == null) {
+                      if (y.color === 'S' || y.color === 'W') return <span title="未有馬會初盤 — 開盤後自動更新" style={{ marginLeft: 3, fontSize: '0.6rem', color: '#999', border: '1px solid #ccc', borderRadius: 3, padding: '0 4px' }}>待定</span>;
+                      return null;
+                    }
                     if (y.color === 'S') {
                       if (dev >= 2) return <span title={`馬會初盤比百家更捧 ${dev.toFixed(1)}pp — 強綠回測：確認 13/15=87%`} style={{ marginLeft: 3, fontSize: '0.6rem', fontWeight: 900, background: '#032169', color: '#ffd700', borderRadius: 3, padding: '0 4px' }}>馬會✓</span>;
                       return <span title={`馬會冇特別加分（${dev.toFixed(1)}pp）— 強綠回測：唔確認 7/12=58%`} style={{ marginLeft: 3, fontSize: '0.6rem', color: '#aaa', borderRadius: 3, padding: '0 4px' }}>馬會✗</span>;
