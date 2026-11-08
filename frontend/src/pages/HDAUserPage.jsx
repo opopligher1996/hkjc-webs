@@ -611,6 +611,7 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
               <th style={td}>開出率</th>
               <th style={td}>回報率</th>
               <th style={td}>結果</th>
+              <th style={td}>半場</th>
               <th style={td}>中</th>
               <th style={td}>馬會亞洲盤</th>
               <th style={td}>讓球勝負</th>
@@ -682,6 +683,7 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                   {y.roi != null ? `${((1 - y.roi) * 100).toFixed(1)}%` : '—'}
                 </td>
                 <td style={td}>{y.result ? `${y.home_goals}-${y.away_goals}（${{ H: '主', D: '和', A: '客' }[y.result]}）` : '未完'}</td>
+                <td style={{ ...td, fontFamily: 'monospace', color: '#778' }}>{y.ht_h != null && y.ht_h >= 0 ? `${y.ht_h}-${y.ht_a}` : '—'}</td>
                 <td style={td}>{y.result ? (y.result === y.side ? '✅' : '❌') : ''}</td>
                 <td
                   style={{ ...td, fontFamily: 'monospace', cursor: 'pointer' }}
@@ -719,7 +721,7 @@ function TrackTable({ name, bg, border, stats, matches, fade, gapFilter, onAhEdi
                 const eTh = { padding: '5px 8px', background: '#032169', color: '#fff', fontSize: '0.68rem', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' };
                 return (
                 <tr>
-                  <td colSpan={gapFilter ? 15 : 12} style={{ padding: '8px 12px', background: '#f4f7ff', borderBottom: '2px solid #c8d4ea' }}>
+                  <td colSpan={gapFilter ? 16 : 13} style={{ padding: '8px 12px', background: '#f4f7ff', borderBottom: '2px solid #c8d4ea' }}>
                     <div style={{ fontSize: '0.7rem', color: '#889', marginBottom: 6 }}>📊 該場完整主客和數據</div>
                     <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem', minWidth: 1200 }}>

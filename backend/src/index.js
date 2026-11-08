@@ -3465,6 +3465,7 @@ app.get('/api/hda/track-stats', async (req, res) => {
               t.sd_h, t.sd_d, t.sd_a, t.cv_h, t.cv_d, t.cv_a,
               t.rate_h, t.rate_d, t.rate_a, t.roi_h, t.roi_d, t.roi_a,
               o.open_h, o.open_d, o.open_a, o.hkjc_h, o.hkjc_d, o.hkjc_a,
+              o.ht_h, o.ht_a,
               COALESCE(t.bench_src, CASE WHEN h.fb IS NOT NULL THEN 'HK33' ELSE 'sim' END) AS bench
        FROM hda_track t
        LEFT JOIN hk33_had h ON h.fb = t.fb AND (h.data->>'rateH') IS NOT NULL
