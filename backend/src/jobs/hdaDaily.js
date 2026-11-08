@@ -359,6 +359,27 @@ async function runDaily() {
       const hkjcInit = await scraper.fetchHkjcOddsInit(7);
       log.push(`HKJC初盤 ${hkjcInit.got}/${hkjcInit.done}`);
     } catch (e) { log.push(`HKJC初盤 FAIL: ${e.message.slice(0, 30)}`); }
+    // 9. 半場賽果（近3日完場賽事）
+    try {
+      const pool = require('../db/pool');
+      const { scrapeLiveMatch } = require('../football/titanLive');
+      const { rows: htRows } = await pool.query(`
+        SELECT titan_id, home_team FROM had_odds
+        WHERE titan_id IS NOT NULL AND odds_src IS NULL AND home_goals IS NOT NULL AND ht_h IS NULL
+          AND match_date >= CURRENT_DATE - 3 ORDER BY match_date DESC LIMIT 60`);
+      let htGot = 0, htNo = 0;
+      for (const m of htRows) {
+        try {
+          const d = await scrapeLiveMatch(String(m.titan_id));
+          if (d.htScore && d.htScore.hg != null) {
+            await pool.query('UPDATE had_odds SET ht_h=$1, ht_a=$2 WHERE titan_id=$3', [d.htScore.hg, d.htScore.ag, String(m.titan_id)]);
+            htGot++;
+          } else htNo++;
+        } catch (_) {}
+        await new Promise(r => setTimeout(r, 2500));
+      }
+      log.push(`半場 +${htGot}(冇資料${htNo})`);
+    } catch (e) { log.push(`半場 FAIL: ${e.message.slice(0, 30)}`); }
     jobState.lastRun = Date.now();
     jobState.lastResult = log.join('・');
     return { ok: true, log };
